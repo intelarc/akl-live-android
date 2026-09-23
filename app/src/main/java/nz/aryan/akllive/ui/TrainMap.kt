@@ -52,7 +52,7 @@ val LightMap = MapPalette(
 val DarkMap = MapPalette(
     water = Color(0xFF0B1628), land = Color(0xFF16233A), cone = Color(0xFF1E2E4A),
     text = Color(0xFFE6ECF7), textMinor = Color(0xFFAAB7CD), halo = Color(0xCC16233A),
-    stationFill = Color(0xFFE9EEF6), stationRing = Color(0xFF0B1628), crlGlow = Color(0x55FFB84D),
+    stationFill = Color(0xFFE9EEF6), stationRing = Color(0xFF0B1628), crlGlow = Color(0x2EFFD166),
     rim = Color(0xFF050A14),
 )
 
@@ -180,7 +180,7 @@ fun TrainMap(
             val c = MapData.CONES
             for (i in c.indices step 3) drawCircle(pal.cone, c[i + 2], Offset(c[i], c[i + 1]))
             // the City Rail Link tunnels glow
-            drawPath(crl, pal.crlGlow, style = Stroke(13f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(crl, pal.crlGlow, style = Stroke(11f, cap = StrokeCap.Round, join = StrokeJoin.Round))
             // lines: E-W, O-W, then S-C on top (as on AT's map); filtered-out lines fade
             for (li in intArrayOf(0, 2, 1)) {
                 val col = Pal.line(li).copy(alpha = if (li in filter) 1f else 0.18f)

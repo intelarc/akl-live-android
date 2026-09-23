@@ -24,13 +24,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -100,17 +98,15 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
             MapHeader(state, now, filter) { li ->
                 filter = if (li in filter && filter.size > 1) filter - li else filter + li
             }
-            Column(Modifier.align(Alignment.BottomEnd).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SmallFloatingActionButton(onClick = { zoom.floatValue = (zoom.floatValue * 1.6f).coerceAtMost(9f) }) {
-                    Text("+", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                }
-                SmallFloatingActionButton(onClick = {
+            // zoom controls live in the empty bottom-left, clear of the lines and labels
+            Row(Modifier.align(Alignment.BottomStart).padding(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                MapButton("+") { zoom.floatValue = (zoom.floatValue * 1.6f).coerceAtMost(9f) }
+                MapButton("−") {
                     zoom.floatValue = (zoom.floatValue / 1.6f).coerceAtLeast(1f)
                     if (zoom.floatValue == 1f) pan.value = Offset.Zero
-                }) { Text("−", fontSize = 22.sp, fontWeight = FontWeight.Bold) }
-                SmallFloatingActionButton(onClick = { zoom.floatValue = 1f; pan.value = Offset.Zero }) {
-                    Icon(Icons.Filled.Home, "Whole network")
                 }
+                MapButton("Fit", 13) { zoom.floatValue = 1f; pan.value = Offset.Zero }
             }
         }
     }
@@ -141,6 +137,17 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
                 panel(Modifier.fillMaxWidth().heightIn(max = maxH * 0.48f))
             }
         }
+    }
+}
+
+@Composable
+private fun MapButton(label: String, textSize: Int = 20, onClick: () -> Unit) {
+    Box(Modifier.size(38.dp).clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f), CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center) {
+        Text(label, fontSize = textSize.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 

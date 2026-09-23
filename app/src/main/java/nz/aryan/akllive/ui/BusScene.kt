@@ -190,10 +190,12 @@ fun DrawScope.drawBusScene(
 
     // the bus
     if (progress != null) {
-        val bh = h * 0.36f
+        // small enough to have room to travel: 20 minutes out it's half off
+        // the left edge, at 0 it's pulled up at the stop
+        val bh = h * 0.25f
         val bl = bh * 2.75f
-        val x0 = 10 * dp
-        val x1 = stopX - bl - 10 * dp
+        val x0 = -bl * 0.5f
+        val x1 = stopX - bl - 8 * dp
         val bx = x0 + (x1 - x0) * progress.coerceIn(0f, 1f)
         drawBus(bx, ground + 2 * dp + (h - ground) * 0.12f, bl, bh, t, night, moving, cancelled, dest, dp)
     }
@@ -267,12 +269,12 @@ private fun DrawScope.drawSuburb(s: Scenery, sky: Sky, night: Boolean, w: Float,
 }
 
 private fun DrawScope.drawStop(x: Float, ground: Float, dp: Float) {
-    drawRect(Color(0xFF7E8794), Offset(x - 1.2f * dp, ground - 46 * dp), Size(2.4f * dp, 48 * dp))
+    drawRect(Color(0xFF7E8794), Offset(x - 1.2f * dp, ground - 36 * dp), Size(2.4f * dp, 38 * dp))
     // timetable case
     drawRoundRect(Color(0xFF2A3346), Offset(x + 3 * dp, ground - 30 * dp), Size(9 * dp, 13 * dp), CornerRadius(1.5f * dp))
     drawRect(Color(0xFFE9EEF5), Offset(x + 4.2f * dp, ground - 28.5f * dp), Size(6.6f * dp, 10 * dp))
     // roundel
-    val c = Offset(x, ground - 54 * dp)
+    val c = Offset(x, ground - 44 * dp)      // low enough to clear the countdown box
     drawCircle(Color.White, 11 * dp, c)
     drawCircle(Pal.AtBlue, 9.2f * dp, c)
     drawRoundRect(Color.White, c + Offset(-5 * dp, -4.5f * dp), Size(10 * dp, 7 * dp), CornerRadius(1.5f * dp))

@@ -45,7 +45,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -195,10 +197,12 @@ private fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int) {
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
+                    // a soft shadow keeps the text readable over clouds and sun
+                    val lift = TextStyle(shadow = Shadow(Color.Black.copy(alpha = 0.7f), Offset(0f, 1.5f), 8f))
                     Text("to ${b.headsign.ifEmpty { "…" }}", color = Color.White, fontWeight = FontWeight.Bold,
-                         fontSize = 19.sp)
-                    Text(b.name.ifEmpty { "Stop ${b.code}" } + " · stop ${b.code}", color = Color.White.copy(alpha = 0.85f),
-                         fontSize = 12.sp)
+                         fontSize = 19.sp, style = lift)
+                    Text(b.name.ifEmpty { "Stop ${b.code}" } + " · stop ${b.code}", color = Color.White,
+                         fontSize = 12.sp, fontWeight = FontWeight.SemiBold, style = lift)
                 }
                 BigCountdown(next, now)
             }
