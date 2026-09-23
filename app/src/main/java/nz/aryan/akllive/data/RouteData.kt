@@ -4,78 +4,8 @@ package nz.aryan.akllive.data
 object RouteData {
     /** our stop code -> (direction label, stops as code|name|lat|lon) */
     val ROUTES: Map<String, Pair<String, List<RouteStop>>> = mapOf(
-        "8669" to ("to Britomart" to parse("8450|Hillsborough Heights Village|-36.92992|174.73548
-8675|Waikowhai Primary|-36.93009|174.74081
-8673|Hillsdale Road|-36.93024|174.74297
-8671|Hillsborough Road/Whitmore Road|-36.92993|174.74489
-8669|Aldersgate Road|-36.92801|174.74836
-8667|Goodall Street|-36.92487|174.75197
-8665|St David's in the Fields|-36.92269|174.75373
-8663|Hills Church|-36.92052|174.75665
-8659|St Margaret's Anglican Church|-36.91638|174.75877
-8657|Carr Road|-36.91491|174.75940
-8655|Monte Cecilia Park|-36.91353|174.76000
-8653|Budock Road|-36.91168|174.76037
-8651|Hillsborough Road/Mount Albert Road|-36.91001|174.76165
-8847|Mount Albert Road/Hillsborough Road|-36.90917|174.76149
-8533|Three Kings School|-36.90875|174.75850
-8529|Kingsway|-36.90504|174.75912
-8531|Hunters Park Drive|-36.90231|174.75930
-8527|Three Kings Grove|-36.90119|174.75842
-8525|Te Tatua-a-Riukiuta/Big King|-36.89958|174.75671
-8523|Rahiri Road|-36.89780|174.75737
-8521|Peary Road|-36.89561|174.75808
-8519|Wairiki Road|-36.89203|174.75919
-8036|Stop A Mount Eden/Balmoral Interchange|-36.88918|174.76004
-8515|Crystal Palace Theatre|-36.88535|174.76115
-8513|Stop A Mount Eden Village|-36.88127|174.76194
-8511|Bridgman Reserve|-36.87798|174.76123
-8509|Mount Eden Domain|-36.87499|174.76173
-8507|Tahaki Reserve|-36.87303|174.76201
-8505|Kelly Street|-36.87043|174.76055
-8503|Stop A Maungawhau Station|-36.86776|174.76118
-8501|Powerstation|-36.86584|174.76119
-7151|Symonds Street/Upper Symonds Street|-36.86231|174.76132
-7149|Symonds Street/Karangahape Road|-36.85741|174.76449
-7147|Stop E Auckland Universities|-36.85426|174.76789
-7145|Waterloo Quadrant|-36.85077|174.77160
-7141|Anzac Avenue/Beach Road|-36.84633|174.77163
-7024|Commerce Street/Tyler Street|-36.84424|174.76836")),
-        "8664" to ("to Waikowhai" to parse("7026|Commerce Street/Galway Street|-36.84453|174.76826
-7140|Anzac Avenue/Beach Road|-36.84643|174.77186
-7146|Stop B Waterloo Quadrant|-36.85077|174.77185
-7150|Stop B Auckland Universities|-36.85482|174.76758
-7158|Stop A Grafton Bridge|-36.85899|174.76336
-7168|Symonds Street/Upper Symonds Street|-36.86248|174.76155
-8500|Powerstation|-36.86583|174.76137
-8502|Stop B Maungawhau Station|-36.86850|174.76093
-8504|Esplanade Road|-36.87108|174.76135
-1870|Tahaki Reserve|-36.87362|174.76224
-8506|Mount Eden Domain|-36.87568|174.76164
-8508|Bridgman Reserve|-36.87787|174.76133
-8510|Stop B Mount Eden Village|-36.88195|174.76213
-8512|Mount Eden Village|-36.88371|174.76150
-8514|Crystal Palace Theatre|-36.88523|174.76126
-8037|Stop B Mount Eden/Balmoral Interchange|-36.88918|174.76019
-8518|Wairiki Road|-36.89208|174.75930
-8522|Peary Road|-36.89568|174.75819
-8524|Rahiri Road|-36.89813|174.75738
-8526|Te Tatua-a-Riukiuta/Big King|-36.89989|174.75717
-8528|Three Kings Grove|-36.90130|174.75871
-8530|Kingsway|-36.90543|174.75918
-8532|Three Kings School|-36.90801|174.75881
-8650|Hillsborough Road/Mount Albert Road|-36.90974|174.76203
-8652|Budock Road|-36.91182|174.76046
-8654|Monte Cecilia Park|-36.91400|174.75992
-8656|St Margaret's Anglican Church|-36.91626|174.75893
-8658|Hillsborough Medical Centre|-36.91968|174.75797
-8660|St David's in the Fields|-36.92272|174.75382
-8662|Goodall Street|-36.92508|174.75192
-8664|Aldersgate Road|-36.92777|174.74879
-8666|Hillsborough Road/Whitmore Road|-36.92993|174.74561
-8668|Hillsdale Road|-36.93031|174.74302
-8670|Waikowhai Park|-36.93082|174.73781
-8451|Hillsborough Heights Village|-36.92967|174.73523")),
+        "8669" to ("to Britomart" to parse("8450|Hillsborough Heights Village|-36.92992|174.73548\n8675|Waikowhai Primary|-36.93009|174.74081\n8673|Hillsdale Road|-36.93024|174.74297\n8671|Hillsborough Road/Whitmore Road|-36.92993|174.74489\n8669|Aldersgate Road|-36.92801|174.74836\n8667|Goodall Street|-36.92487|174.75197\n8665|St David's in the Fields|-36.92269|174.75373\n8663|Hills Church|-36.92052|174.75665\n8659|St Margaret's Anglican Church|-36.91638|174.75877\n8657|Carr Road|-36.91491|174.75940\n8655|Monte Cecilia Park|-36.91353|174.76000\n8653|Budock Road|-36.91168|174.76037\n8651|Hillsborough Road/Mount Albert Road|-36.91001|174.76165\n8847|Mount Albert Road/Hillsborough Road|-36.90917|174.76149\n8533|Three Kings School|-36.90875|174.75850\n8529|Kingsway|-36.90504|174.75912\n8531|Hunters Park Drive|-36.90231|174.75930\n8527|Three Kings Grove|-36.90119|174.75842\n8525|Te Tatua-a-Riukiuta/Big King|-36.89958|174.75671\n8523|Rahiri Road|-36.89780|174.75737\n8521|Peary Road|-36.89561|174.75808\n8519|Wairiki Road|-36.89203|174.75919\n8036|Stop A Mount Eden/Balmoral Interchange|-36.88918|174.76004\n8515|Crystal Palace Theatre|-36.88535|174.76115\n8513|Stop A Mount Eden Village|-36.88127|174.76194\n8511|Bridgman Reserve|-36.87798|174.76123\n8509|Mount Eden Domain|-36.87499|174.76173\n8507|Tahaki Reserve|-36.87303|174.76201\n8505|Kelly Street|-36.87043|174.76055\n8503|Stop A Maungawhau Station|-36.86776|174.76118\n8501|Powerstation|-36.86584|174.76119\n7151|Symonds Street/Upper Symonds Street|-36.86231|174.76132\n7149|Symonds Street/Karangahape Road|-36.85741|174.76449\n7147|Stop E Auckland Universities|-36.85426|174.76789\n7145|Waterloo Quadrant|-36.85077|174.77160\n7141|Anzac Avenue/Beach Road|-36.84633|174.77163\n7024|Commerce Street/Tyler Street|-36.84424|174.76836")),
+        "8664" to ("to Waikowhai" to parse("7026|Commerce Street/Galway Street|-36.84453|174.76826\n7140|Anzac Avenue/Beach Road|-36.84643|174.77186\n7146|Stop B Waterloo Quadrant|-36.85077|174.77185\n7150|Stop B Auckland Universities|-36.85482|174.76758\n7158|Stop A Grafton Bridge|-36.85899|174.76336\n7168|Symonds Street/Upper Symonds Street|-36.86248|174.76155\n8500|Powerstation|-36.86583|174.76137\n8502|Stop B Maungawhau Station|-36.86850|174.76093\n8504|Esplanade Road|-36.87108|174.76135\n1870|Tahaki Reserve|-36.87362|174.76224\n8506|Mount Eden Domain|-36.87568|174.76164\n8508|Bridgman Reserve|-36.87787|174.76133\n8510|Stop B Mount Eden Village|-36.88195|174.76213\n8512|Mount Eden Village|-36.88371|174.76150\n8514|Crystal Palace Theatre|-36.88523|174.76126\n8037|Stop B Mount Eden/Balmoral Interchange|-36.88918|174.76019\n8518|Wairiki Road|-36.89208|174.75930\n8522|Peary Road|-36.89568|174.75819\n8524|Rahiri Road|-36.89813|174.75738\n8526|Te Tatua-a-Riukiuta/Big King|-36.89989|174.75717\n8528|Three Kings Grove|-36.90130|174.75871\n8530|Kingsway|-36.90543|174.75918\n8532|Three Kings School|-36.90801|174.75881\n8650|Hillsborough Road/Mount Albert Road|-36.90974|174.76203\n8652|Budock Road|-36.91182|174.76046\n8654|Monte Cecilia Park|-36.91400|174.75992\n8656|St Margaret's Anglican Church|-36.91626|174.75893\n8658|Hillsborough Medical Centre|-36.91968|174.75797\n8660|St David's in the Fields|-36.92272|174.75382\n8662|Goodall Street|-36.92508|174.75192\n8664|Aldersgate Road|-36.92777|174.74879\n8666|Hillsborough Road/Whitmore Road|-36.92993|174.74561\n8668|Hillsdale Road|-36.93031|174.74302\n8670|Waikowhai Park|-36.93082|174.73781\n8451|Hillsborough Heights Village|-36.92967|174.73523")),
     )
 
     private fun parse(s: String) = s.split('\n').map {

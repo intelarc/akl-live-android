@@ -65,7 +65,8 @@ def floats(seq, nd=2):
 
 
 def kstr(s):
-    return '"' + s.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$") + '"'
+    return '"' + (s.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+                  .replace("\n", "\\n")) + '"'
 
 
 def stops_table():

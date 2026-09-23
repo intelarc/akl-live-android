@@ -129,7 +129,8 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
     }
 
     BoxWithConstraints(modifier.fillMaxSize()) {
-        if (maxWidth > maxHeight) {
+        val maxH = maxHeight                  // read here: inner layout scopes can't see it
+        if (maxWidth > maxH) {
             Row(Modifier.fillMaxSize()) {
                 map(Modifier.weight(1.5f).fillMaxHeight())
                 panel(Modifier.weight(1f).fillMaxHeight())
@@ -137,7 +138,7 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
         } else {
             Column(Modifier.fillMaxSize()) {
                 map(Modifier.fillMaxWidth().weight(1f))
-                panel(Modifier.fillMaxWidth().heightIn(max = maxHeight * 0.48f))
+                panel(Modifier.fillMaxWidth().heightIn(max = maxH * 0.48f))
             }
         }
     }
