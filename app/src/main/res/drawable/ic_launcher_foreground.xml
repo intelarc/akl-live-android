@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- An AT-style roundel with a train front: 108dp canvas, art inside the 66dp safe zone -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- white ring -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M54,24a30,30 0,1 1,0 60a30,30 0,1 1,0 -60zM54,29a25,25 0,1 0,0 50a25,25 0,1 0,0 -50z" />
+    <!-- train body -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M42,38h24a5,5 0,0 1,5 5v20a5,5 0,0 1,-5 5h-24a5,5 0,0 1,-5 -5v-20a5,5 0,0 1,5 -5z" />
+    <!-- windscreen -->
+    <path android:fillColor="#FF235EA8"
+        android:pathData="M43,42h22a2,2 0,0 1,2 2v8a2,2 0,0 1,-2 2h-22a2,2 0,0 1,-2 -2v-8a2,2 0,0 1,2 -2z" />
+    <!-- headlights -->
+    <path android:fillColor="#FF235EA8" android:pathData="M45,60m-2.5,0a2.5,2.5 0,1 0,5 0a2.5,2.5 0,1 0,-5 0" />
+    <path android:fillColor="#FF235EA8" android:pathData="M63,60m-2.5,0a2.5,2.5 0,1 0,5 0a2.5,2.5 0,1 0,-5 0" />
+    <!-- wheels / track -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M43,70l-4,6h5l3,-6zM65,70l4,6h-5l-3,-6z" />
+</vector>
