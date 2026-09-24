@@ -39,6 +39,7 @@ jobs:
         if: inputs.apk == 'build'
         env:
           AT_API_KEY: ${{ secrets.AT_API_KEY }}
+          LINZ_API_KEY: ${{ secrets.LINZ_API_KEY }}
         run: |
           gradle :app:assembleRelease --no-daemon --stacktrace
           cp app/build/outputs/apk/release/app-release.apk AKL-Live.apk

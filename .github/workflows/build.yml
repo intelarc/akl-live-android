@@ -33,6 +33,7 @@ jobs:
       - name: Build
         env:
           AT_API_KEY: ${{ secrets.AT_API_KEY }}
+          LINZ_API_KEY: ${{ secrets.LINZ_API_KEY }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
@@ -41,7 +42,7 @@ jobs:
         continue-on-error: true
         env:
           AT_API_KEY: ${{ secrets.AT_API_KEY }}
-        run: python3 tools/fleet_survey.py --raw
+        run: python3 tools/fleet_survey.py
 
       - name: Name the APK
         run: cp app/build/outputs/apk/release/app-release.apk AKL-Live.apk

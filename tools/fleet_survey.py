@@ -21,7 +21,7 @@ def api(path):
 
 
 def load_fleet():
-    """Rows of (prefixes, first, last, operator, model, kind)."""
+    """Rows of (prefixes, first, last, model, power, decks)."""
     rows = []
     if not os.path.exists(FLEET):
         return rows
@@ -30,7 +30,7 @@ def load_fleet():
         if not line or line.startswith("#"):
             continue
         p = line.split("\t")
-        rows.append((p[0].split(","), int(p[1]), int(p[2]), p[3], p[4], p[5] if len(p) > 5 else ""))
+        rows.append((p[0].split(","), int(p[1]), int(p[2]), p[3], p[4], p[5]))
     return rows
 
 
@@ -41,9 +41,9 @@ def split_label(label):
 
 
 def lookup(fleet, prefix, num):
-    for pre, a, b, op, model, kind in fleet:
-        if (prefix in pre or "*" in pre) and a <= num <= b:
-            return op, model
+    for pre, a, b, model, power, decks in fleet:
+        if prefix in pre and a <= num <= b:
+            return model, power
     return None
 
 
@@ -95,22 +95,27 @@ def main():
         print("%-6s %5d  %-44s %s" % (pre or "-", len(vs), ranges(nums)[:44], sample))
 
     print()
-    unknown = collections.defaultdict(list)
     known = 0
-    for pre, vs in by_prefix.items():
-        for label, _, _, route in vs:
-            _, n = split_label(label)
-            if n is not None and lookup(fleet, pre, n):
-                known += 1
-            else:
-                unknown[pre].append((n, route))
-    total = sum(len(v) for v in by_prefix.values())
-    print("fleet table recognises %d of %d buses" % (known, total))
-    for pre, vs in sorted(unknown.items()):
-        nums = [n for n, _ in vs if n is not None]
-        routes = collections.Counter(r for _, r in vs).most_common(8)
-        print("  unknown %-4s %s  (routes: %s)" % (pre or "-", ranges(nums), ", ".join(r for r, _ in routes)))
-
+    total = 0
+    print("every range on the road (prefix, fleet numbers, count, top routes, fleet table model):")
+    for pre, vs in sorted(by_prefix.items()):
+        runs = collections.defaultdict(list)             # range start -> [(n, route)]
+        nums = sorted((split_label(l)[1], r) for l, _, _, r in vs if split_label(l)[1] is not None)
+        start = prev = None
+        for n, r in nums:
+            if start is None or n > prev + 3:
+                start = n
+            prev = n
+            runs[start].append((n, r))
+        for st, items in sorted(runs.items()):
+            lo, hi = items[0][0], items[-1][0]
+            total += len(items)
+            hit = lookup(fleet, pre, lo)
+            known += sum(1 for n, _ in items if lookup(fleet, pre, n))
+            routes = collections.Counter(r for _, r in items if r).most_common(5)
+            print("  %-4s %4d-%-4d %3d  %-34s %s" % (pre or "-", lo, hi, len(items),
+                  " ".join("%s(%d)" % rc for rc in routes), "%s / %s" % hit if hit else "?"))
+    print("fleet table recognises %d of %d labelled buses" % (known, total))
 
 if __name__ == "__main__":
     main()
