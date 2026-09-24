@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
+import nz.aryan.akllive.data.Weather
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -28,6 +29,7 @@ class Scenery(val city: Boolean, seed: Int) {
     val trees = ArrayList<Tree>()
     val stars: List<Triple<Float, Float, Float>>
     val clouds: List<FloatArray>              // offset, y, scale, speed
+    val drops: List<FloatArray>               // x, phase, speed
 
     init {
         val r = Random(seed * 7919 + 17)
@@ -63,6 +65,7 @@ class Scenery(val city: Boolean, seed: Int) {
                 }
             }
         }
+        drops = List(120) { floatArrayOf(r.nextFloat(), r.nextFloat(), r.nextFloat()) }
     }
 }
 
@@ -108,13 +111,21 @@ private val Lit = Color(0xFFFFD98A)
  */
 fun DrawScope.drawBusScene(
     s: Scenery, hour: Float, t: Float, progress: Float?, moving: Boolean,
-    cancelled: Boolean, dest: TextLayoutResult?, dp: Float, look: BusLook = BusLook(),
+    cancelled: Boolean, dest: TextLayoutResult?, dp: Float, look: BusLook = BusLook(), wx: Weather? = null,
 ) {
     val w = size.width
     val h = size.height
     val ground = h * 0.74f
-    val sky = skyAt(hour)
     val night = isNight(hour)
+    // the real weather: cloud cover greys the sky, rain darkens it further
+    val cover = (wx?.cloudCover ?: 30) / 100f
+    val rain = wx?.rain ?: 0
+    val gloom = (((cover - 0.5f) / 0.5f).coerceIn(0f, 1f) * 0.5f + rain * 0.08f).coerceAtMost(0.7f)
+    val grey = if (night) Color(0xFF141922) else Color(0xFF8C95A5)
+    val clear = skyAt(hour)
+    val sky = Sky(lerp(clear.top, grey, gloom), lerp(clear.bottom, lerp(grey, Color.White, 0.25f), gloom),
+                  lerp(clear.hills, grey, gloom * 0.5f), lerp(clear.near, grey, gloom * 0.4f))
+    val sunShow = (1f - gloom * 1.7f).coerceIn(0f, 1f)
 
     // sky
     drawRect(Brush.verticalGradient(listOf(sky.top, sky.bottom), 0f, ground), size = Size(w, ground))
@@ -126,31 +137,37 @@ fun DrawScope.drawBusScene(
         val sy = ground - sin(p * PI).toFloat() * ground * 0.78f
         val low = 1f - sin(p * PI).toFloat()
         val sun = lerp(Color(0xFFFFF4D6), Color(0xFFFFB066), low)
-        drawCircle(Brush.radialGradient(listOf(sun.copy(alpha = 0.55f), Color.Transparent),
+        drawCircle(Brush.radialGradient(listOf(sun.copy(alpha = 0.55f * sunShow), Color.Transparent),
                                         Offset(sx, sy), 46 * dp), 46 * dp, Offset(sx, sy))
-        drawCircle(sun, 13 * dp, Offset(sx, sy))
+        drawCircle(sun.copy(alpha = sunShow), 13 * dp, Offset(sx, sy))
     }
-    if (night) {
+    if (night && sunShow > 0f) {
         s.stars.forEachIndexed { i, (x, y, ph) ->
-            val a = 0.45f + 0.45f * sin(t * (0.8f + (i % 5) * 0.3f) + ph)
+            val a = (0.45f + 0.45f * sin(t * (0.8f + (i % 5) * 0.3f) + ph)) * (1f - cover).coerceIn(0f, 1f)
             drawCircle(Color.White.copy(alpha = a), (if (i % 7 == 0) 1.4f else 0.9f) * dp,
                        Offset(x * w, y * ground))
         }
         val mc = Offset(w * 0.82f, h * 0.2f)
-        drawCircle(Brush.radialGradient(listOf(Color(0x55FFF3D0), Color.Transparent), mc, 30 * dp), 30 * dp, mc)
-        drawCircle(Color(0xFFFBF3DA), 10 * dp, mc)
+        drawCircle(Brush.radialGradient(listOf(Color(0x55FFF3D0).copy(alpha = 0.33f * sunShow), Color.Transparent),
+                                        mc, 30 * dp), 30 * dp, mc)
+        drawCircle(Color(0xFFFBF3DA).copy(alpha = sunShow), 10 * dp, mc)
         drawCircle(sky.top, 9 * dp, mc + Offset(4.5f * dp, -2.5f * dp))      // crescent
     }
 
-    // clouds drift by (daytime and dusk)
-    if (!night) {
-        val alpha = if (hour < 7.5f || hour > 18f) 0.7f else 0.92f
-        for (c in s.clouds) {
+    // clouds drift by: as many as the real cover, grey when it's raining, dark at night
+    val clouds = if (wx == null) (if (night) 0 else 5) else Math.round(cover * 5.4f).coerceIn(0, 5)
+    val cloudCol = when {
+        night -> Color(0xFF2A3246).copy(alpha = 0.85f)
+        rain > 0 || gloom > 0.3f -> lerp(Color.White, Color(0xFF8E98A8), 0.35f + gloom * 0.5f).copy(alpha = 0.95f)
+        else -> Color.White.copy(alpha = if (hour < 7.5f || hour > 18f) 0.7f else 0.92f)
+    }
+    run {
+        for (c in s.clouds.take(clouds)) {
             val span = w + 160 * dp
             val cx = ((c[0] * span + t * c[3] * dp) % span) - 80 * dp
             val cy = c[1] * ground
-            val k = c[2] * dp
-            val col = Color.White.copy(alpha = alpha)
+            val k = c[2] * dp * (1f + gloom * 0.6f)
+            val col = cloudCol
             drawCircle(col, 11 * k, Offset(cx, cy + 3 * k))
             drawCircle(col, 15 * k, Offset(cx + 14 * k, cy - 2 * k))
             drawCircle(col, 11 * k, Offset(cx + 30 * k, cy + 3 * k))
@@ -175,6 +192,12 @@ fun DrawScope.drawBusScene(
     if (s.city) drawRangitoto(haze, w, h, ground) else drawMaungakiekie(haze, night, w, h, ground, dp)
 
     if (s.city) drawCity(s, sky, night, t, w, h, ground, dp) else drawSuburb(s, sky, night, w, h, ground, dp)
+
+    if (wx?.foggy == true) {
+        drawRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = if (night) 0.08f else 0.2f),
+                                               Color.White.copy(alpha = if (night) 0.22f else 0.5f)), 0f, ground),
+                 size = Size(w, ground))
+    }
 
     // road
     val road = if (night) Color(0xFF22262F) else Color(0xFF3B414D)
@@ -201,6 +224,23 @@ fun DrawScope.drawBusScene(
         val x1 = stopX - bl - 8 * dp
         val bx = x0 + (x1 - x0) * progress.coerceIn(0f, 1f)
         drawBus(bx, ground + 2 * dp + (h - ground) * 0.12f, bl, bh, t, night, moving, cancelled, dest, dp, look)
+    }
+
+    // rain, falling on a slant
+    if (rain > 0) {
+        val n = intArrayOf(0, 40, 80, 120)[rain]
+        val len = (if (rain == 1) 6f else 11f) * dp
+        val col = Color(0xFFD6E6FF).copy(alpha = if (rain == 1) 0.35f else 0.5f)
+        for (i in 0 until n) {
+            val d = s.drops[i]
+            val y = ((d[1] + t * (1.1f + d[2] * 0.8f)) % 1f) * (h + len) - len
+            val x = d[0] * (w + 30 * dp) - y * 0.2f
+            drawLine(col, Offset(x, y), Offset(x - len * 0.2f, y + len), strokeWidth = 1.1f * dp, cap = StrokeCap.Round)
+        }
+    }
+    if (wx?.thunder == true) {
+        val ph = t % 9f
+        if (ph < 0.1f || ph in 0.22f..0.3f) drawRect(Color.White.copy(alpha = 0.35f))
     }
 }
 
