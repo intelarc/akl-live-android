@@ -1,5 +1,8 @@
 package nz.aryan.akllive.ui
 
+import android.graphics.Bitmap
+import android.graphics.Paint
+import android.graphics.RectF
 import android.os.SystemClock
 import android.view.Gravity
 import androidx.compose.foundation.Canvas
@@ -53,10 +56,13 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.Layer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
@@ -99,6 +105,22 @@ data class MapMarker(
     val alert: Color? = null,
 )
 
+/**
+ * One of many vehicles (every bus in Auckland), drawn by the map itself so a
+ * thousand of them stay smooth. [label] (the route) shows once zoomed in.
+ */
+data class CrowdDot(
+    val id: String,
+    val lat: Double,
+    val lon: Double,
+    val bearing: Float?,
+    val color: Color,
+    val label: String? = null,
+)
+
+/** Fly the camera here; a new [key] flies again even to the same spot. */
+data class MapFocus(val lat: Double, val lon: Double, val zoom: Double = 14.5, val key: Long = System.nanoTime())
+
 /** Map styles: OpenFreeMap for streets; LINZ aerials (to 7.5 cm in Auckland) with a key, Esri's without. */
 object MapStyles {
     private const val ESRI =
@@ -133,17 +155,21 @@ object MapStyles {
             .put(JSONObject().put("id", "imagery").put("type", "raster").put("source", "imagery")
                      .put("paint", JSONObject().put("raster-brightness-max", if (dark) 0.82 else 1.0)
                                                .put("raster-saturation", -0.12)))
+        // fonts for route labels, from the same place the street style gets them
         return JSONObject().put("version", 8).put("sources", JSONObject().put("imagery", source))
+            .put("glyphs", "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf")
             .put("layers", layers).toString()
     }
 }
 
 private const val GLIDE_MS = 10_000f
+private const val CROWD_GLIDE_MS = 4_000f
 
 /** Where a marker is drawn: it glides from its last spot to each new fix. */
-private class Glide(var fromLat: Double, var fromLon: Double, var toLat: Double, var toLon: Double, var start: Long) {
+private class Glide(var fromLat: Double, var fromLon: Double, var toLat: Double, var toLon: Double, var start: Long,
+                    val ms: Float = GLIDE_MS) {
     fun at(now: Long): Pair<Double, Double> {
-        val t = ((now - start) / GLIDE_MS).coerceIn(0f, 1f).let { it * it * (3 - 2 * it) }
+        val t = ((now - start) / ms).coerceIn(0f, 1f).let { it * it * (3 - 2 * it) }
         return (fromLat + (toLat - fromLat) * t) to (fromLon + (toLon - fromLon) * t)
     }
 }
@@ -165,6 +191,9 @@ fun LiveMap(
     interactive: Boolean = true,
     selected: String? = null,
     topInset: Float = 0f,
+    crowd: List<CrowdDot> = emptyList(),
+    focus: MapFocus? = null,
+    onCrowd: (String) -> Unit = {},
     onMarker: (String) -> Unit = {},
     onStop: (String) -> Unit = {},
     onBackground: () -> Unit = {},
@@ -193,6 +222,8 @@ fun LiveMap(
     val tapMarker by rememberUpdatedState(onMarker)
     val tapStop by rememberUpdatedState(onStop)
     val tapNothing by rememberUpdatedState(onBackground)
+    val tapCrowd by rememberUpdatedState(onCrowd)
+    val crowdGlides = remember { HashMap<String, Glide>() }
 
     // MapView follows the screen's lifecycle, and is torn down with this composable
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -239,8 +270,19 @@ fun LiveMap(
                 val mkD = mk?.let { val (la, lo) = glides[it.id]?.at(now) ?: (it.lat to it.lon); dist(la, lo) }
                 val st = dots.filter { it.id != null }.minByOrNull { dist(it.lat, it.lon) }
                 val stD = st?.let { dist(it.lat, it.lon) }
+                val hitMarker = mk != null && mkD!! < 26 * density
+                // the crowd is drawn by the map, so ask the map what's under the finger
+                val crowdHit = if (hitMarker) null else {
+                    val r = 16 * density
+                    val hits = if (m.style?.getLayer("crowd-dots") == null) emptyList()
+                               else m.queryRenderedFeatures(RectF(at.x - r, at.y - r, at.x + r, at.y + r), "crowd-dots")
+                    hits.filter { it.hasProperty("id") }.minByOrNull { f ->
+                        (f.geometry() as? Point)?.let { dist(it.latitude(), it.longitude()) } ?: Float.MAX_VALUE
+                    }?.getStringProperty("id")
+                }
                 when {
-                    mk != null && mkD!! < 26 * density -> tapMarker(mk.id)
+                    hitMarker -> tapMarker(mk!!.id)
+                    crowdHit != null -> tapCrowd(crowdHit)
                     st != null && stD!! < 20 * density -> tapStop(st.id!!)
                     else -> tapNothing()
                 }
@@ -270,6 +312,49 @@ fun LiveMap(
     LaunchedEffect(style, lines, stops) {
         val s = style ?: return@LaunchedEffect
         if (s.isFullyLoaded) drawLayers(s, lines, stops)
+    }
+
+    // the crowd: retarget each vehicle's glide, then feed the map positions for a few seconds
+    LaunchedEffect(style, crowd) {
+        val s = style ?: return@LaunchedEffect
+        if (!s.isFullyLoaded) return@LaunchedEffect
+        val src = crowdSource(s, density)
+        val start = SystemClock.elapsedRealtime()
+        val seen = HashSet<String>(crowd.size * 2)
+        for (d in crowd) {
+            seen += d.id
+            val g = crowdGlides[d.id]
+            if (g == null) {
+                crowdGlides[d.id] = Glide(d.lat, d.lon, d.lat, d.lon, start, CROWD_GLIDE_MS)
+            } else if (g.toLat != d.lat || g.toLon != d.lon) {
+                val (cl, co) = g.at(start)
+                val far = hypot(cl - d.lat, (co - d.lon) * 0.8) > 0.02
+                g.fromLat = if (far) d.lat else cl; g.fromLon = if (far) d.lon else co
+                g.toLat = d.lat; g.toLon = d.lon; g.start = start
+            }
+        }
+        crowdGlides.keys.retainAll(seen)
+        val hex = HashMap<Color, String>()
+        while (true) {
+            val now = SystemClock.elapsedRealtime()
+            src.setGeoJson(FeatureCollection.fromFeatures(crowd.map { d ->
+                val (la, lo) = crowdGlides[d.id]?.at(now) ?: (d.lat to d.lon)
+                Feature.fromGeometry(Point.fromLngLat(lo, la)).also { f ->
+                    f.addStringProperty("id", d.id)
+                    f.addStringProperty("c", hex.getOrPut(d.color) { "#%06X".format(0xFFFFFF and d.color.toArgb()) })
+                    d.bearing?.let { f.addNumberProperty("b", it) }
+                    d.label?.let { f.addStringProperty("r", it) }
+                }
+            }))
+            if (now - start >= CROWD_GLIDE_MS) break
+            delay(90)
+        }
+    }
+
+    LaunchedEffect(map, focus) {
+        val m = map ?: return@LaunchedEffect
+        val f = focus ?: return@LaunchedEffect
+        m.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(f.lat, f.lon), maxOf(m.cameraPosition.zoom, f.zoom)), 700)
     }
 
     LaunchedEffect(map, fit) {
@@ -345,19 +430,20 @@ fun LiveMap(
 
 /** Route lines (with a dark casing so they read over photos) and stop dots, as map layers. */
 private fun drawLayers(s: Style, lines: List<MapLine>, stops: List<MapStop>) {
+    fun put(layer: Layer) = if (s.getLayer("crowd-dots") != null) s.addLayerBelow(layer, "crowd-dots") else s.addLayer(layer)
     s.layers.filter { it.id.startsWith("akl-") }.forEach { s.removeLayer(it) }
     s.sources.filter { it.id.startsWith("akl-") }.forEach { s.removeSource(it) }
     lines.forEachIndexed { i, line ->
         val geom = MultiLineString.fromLngLats(line.parts.map { part -> part.map { Point.fromLngLat(it.second, it.first) } })
         s.addSource(GeoJsonSource("akl-line-$i", Feature.fromGeometry(geom)))
-        s.addLayer(LineLayer("akl-line-$i-case", "akl-line-$i").withProperties(
+        put(LineLayer("akl-line-$i-case", "akl-line-$i").withProperties(
             PropertyFactory.lineColor(Color(0xFF0B1628).toArgb()),
             PropertyFactory.lineOpacity(0.55f),
             PropertyFactory.lineWidth(line.width + 3f),
             PropertyFactory.lineOffset(line.offset),
             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)))
-        s.addLayer(LineLayer("akl-line-$i", "akl-line-$i").withProperties(
+        put(LineLayer("akl-line-$i", "akl-line-$i").withProperties(
             PropertyFactory.lineColor(line.color.toArgb()),
             PropertyFactory.lineWidth(line.width),
             PropertyFactory.lineOffset(line.offset),
@@ -368,12 +454,72 @@ private fun drawLayers(s: Style, lines: List<MapLine>, stops: List<MapStop>) {
         val (color, big) = key
         val fc = FeatureCollection.fromFeatures(group.map { Feature.fromGeometry(Point.fromLngLat(it.lon, it.lat)) })
         s.addSource(GeoJsonSource("akl-stops-$k", fc))
-        s.addLayer(CircleLayer("akl-stops-$k", "akl-stops-$k").withProperties(
+        put(CircleLayer("akl-stops-$k", "akl-stops-$k").withProperties(
             PropertyFactory.circleRadius(if (big) 7f else 3.4f),
             PropertyFactory.circleColor(Color.White.toArgb()),
             PropertyFactory.circleStrokeColor(color.toArgb()),
             PropertyFactory.circleStrokeWidth(if (big) 4f else 2f)))
     }
+}
+
+/** The crowd's source and layers: a dot per vehicle, a heading arrow, and the route once zoomed in. */
+private fun crowdSource(s: Style, dp: Float): GeoJsonSource {
+    s.getSourceAs<GeoJsonSource>("crowd")?.let { return it }
+    val src = GeoJsonSource("crowd")
+    s.addSource(src)
+    s.addImage("crowd-arrow", arrowBitmap(dp))
+    val zoom = Expression.zoom()
+    s.addLayer(CircleLayer("crowd-dots", "crowd").withProperties(
+        PropertyFactory.circleColor(Expression.toColor(Expression.get("c"))),
+        PropertyFactory.circleRadius(Expression.interpolate(Expression.linear(), zoom,
+            Expression.stop(9, 2.4f), Expression.stop(11, 3.4f), Expression.stop(13, 5f), Expression.stop(15, 7.5f))),
+        PropertyFactory.circleStrokeColor(Color.White.toArgb()),
+        PropertyFactory.circleStrokeWidth(Expression.interpolate(Expression.linear(), zoom,
+            Expression.stop(9, 0.5f), Expression.stop(13, 1.5f)))))
+    s.addLayer(SymbolLayer("crowd-arrows", "crowd").withProperties(
+        PropertyFactory.iconImage("crowd-arrow"),
+        PropertyFactory.iconRotate(Expression.get("b")),
+        PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+        PropertyFactory.iconAllowOverlap(true),
+        PropertyFactory.iconIgnorePlacement(true),
+        PropertyFactory.iconSize(Expression.interpolate(Expression.linear(), zoom,
+            Expression.stop(12, 0.6f), Expression.stop(15, 1f))),
+    ).withFilter(Expression.has("b")).also { it.minZoom = 12f })
+    s.addLayer(SymbolLayer("crowd-labels", "crowd").withProperties(
+        PropertyFactory.textField(Expression.get("r")),
+        PropertyFactory.textFont(arrayOf("Noto Sans Bold")),
+        PropertyFactory.textSize(11f),
+        PropertyFactory.textColor(Color.White.toArgb()),
+        PropertyFactory.textHaloColor(Color(0xFF0B1628).toArgb()),
+        PropertyFactory.textHaloWidth(1.6f),
+        PropertyFactory.textAnchor(Property.TEXT_ANCHOR_BOTTOM),
+        PropertyFactory.textOffset(arrayOf(0f, -0.75f)),
+    ).withFilter(Expression.has("r")).also { it.minZoom = 13.5f })
+    return src
+}
+
+/** A white arrowhead just outside a crowd dot, pointing north; the layer turns it to the heading. */
+private fun arrowBitmap(dp: Float): Bitmap {
+    val size = (40 * dp).toInt()
+    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val c = android.graphics.Canvas(bmp)
+    val mid = size / 2f
+    val path = android.graphics.Path().apply {
+        moveTo(mid, mid - 16 * dp)
+        lineTo(mid + 5 * dp, mid - 9.5f * dp)
+        lineTo(mid - 5 * dp, mid - 9.5f * dp)
+        close()
+    }
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    paint.style = Paint.Style.FILL
+    paint.color = android.graphics.Color.WHITE
+    c.drawPath(path, paint)
+    paint.style = Paint.Style.STROKE
+    paint.strokeWidth = 1.2f * dp
+    paint.strokeJoin = Paint.Join.ROUND
+    paint.color = 0xFF0B1628.toInt()
+    c.drawPath(path, paint)
+    return bmp
 }
 
 /**

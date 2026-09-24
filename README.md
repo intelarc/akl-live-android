@@ -38,6 +38,30 @@ Britomart and 8664 to Waikowhai. Stops and route can be changed in Settings.
   fixes and pointing where it's heading. Tap it for full screen, then tap a bus
   to see what it is. Pull down anywhere to refresh.
 
+## Live
+
+Every bus in Auckland on one map, about a thousand at a time, coloured by
+operator and gliding between GPS fixes. Zoom in and each one shows its heading
+and route number.
+
+- **Search** by route (`27` finds the 27H, 27W and 27T), fleet number
+  (`NB5075`) or model (`eT12`), and the map frames what it found.
+- **Filters** for electric buses, double-deckers or one operator, with live counts.
+- **Tap a bus** for its route and destination, how late it's running, its
+  speed, how full it is and what model it is. Tap the model for its page.
+
+## Fleet
+
+Every bus model on the network (the CRRC eT12 MAX, Geely C13E, Enviro500 and
+the rest), sorted by how many are out right now.
+
+- **Each model has its own page:** a drawing of it (double-deckers, tri-axles,
+  electrics), specs such as length, seats, motor and top speed, a short
+  history, the fleet numbers each operator uses, and a live map of every one of
+  them on the road, with a list you can tap to find each bus.
+- Buses whose fleet numbers aren't in the list yet are grouped under **Not
+  identified yet**, with their own map.
+
 ## Trains
 
 A live map of the post-CRL network, drawn after AT's official "Ngā Tereina"
@@ -83,7 +107,8 @@ Transit data comes straight from the
 | Bus and train GPS | `realtime/legacy/vehiclelocations?tripid=` / `?vehicleid=` (all trains are 59xxx) |
 | Train destination and stops | `gtfs/v3/trips/{id}` and `.../stoptimes` |
 | Station departures | stoptrips for each platform (platforms from `parent_station`) |
-| Bus operator and model | the vehicle label (`TR3884`) looked up in `app/src/main/assets/fleet.tsv` |
+| Every bus (Live, Fleet) | `realtime/legacy/vehiclelocations`, the whole feed (~80 KB gzipped) |
+| Bus operator and model | the vehicle label (`TR3884`) looked up in `app/src/main/assets/fleet.tsv` and `models.json` |
 
 Train GPS fixes are snapped onto the nearest station-to-station stretch of the
 train's own line on the schematic. `tools/gen_data.py` generates the map
@@ -92,14 +117,22 @@ geometry, the station/platform table and the 27H's stop lists into
 
     AT_API_KEY=... python tools/gen_data.py
 
-The app polls only while it's on screen: buses every 30 s, trains every 15 s.
+The app polls only while it's on screen: buses every 30 s, trains every 15 s,
+and the whole network every 20 s, only while Live or Fleet is open.
+
+AT's feed reports train speeds in m/s, as GTFS-realtime specifies, but bus
+speeds in km/h. Both were checked against how far vehicles actually moved
+between fixes.
 
 ### The fleet list
 
 AT's feed doesn't say what model a bus is, only its fleet number with the
 operator's code in front (NB NZ Bus, GB Go Bus, RT Ritchies, HE Howick &
 Eastern, TR Tranzurban, BA Bayes, WB Waiheke). `fleet.tsv` maps fleet number
-ranges to models. Every CI build runs `tools/fleet_survey.py`, which lists each
+ranges to models, and `models.json` describes each model. Both come from the
+[AT Metro Wiki](https://atmetro.fandom.com)'s model and operator pages (CC BY-SA).
+They cover about three quarters of the buses on the road. Every CI build runs
+`tools/fleet_survey.py`, which lists each
 range on the road right now, the routes it's running and whether the table
 knows it, so gaps are easy to fill in:
 

@@ -1,5 +1,5 @@
 # Surveys every bus on the road right now and checks it against the app's
-# fleet table (app/src/main/assets/fleet.tsv), so the "what bus is coming"
+# fleet table (app/src/main/assets/fleet.tsv and models.json), so the "what bus is coming"
 # lookup can be kept up to date as operators add buses.
 #
 #   AT_API_KEY=... python tools/fleet_survey.py
@@ -10,6 +10,7 @@ import collections, json, os, re, sys, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FLEET = os.path.join(HERE, "..", "app", "src", "main", "assets", "fleet.tsv")
+MODELS = os.path.join(HERE, "..", "app", "src", "main", "assets", "models.json")
 KEY = os.environ.get("AT_API_KEY", "")
 
 
@@ -21,16 +22,19 @@ def api(path):
 
 
 def load_fleet():
-    """Rows of (prefixes, first, last, model, power, decks)."""
+    """Rows of (prefixes, first, last, model name, power, decks)."""
     rows = []
     if not os.path.exists(FLEET):
         return rows
+    models = {m["id"]: m for m in json.load(open(MODELS, encoding="utf-8"))}
     for line in open(FLEET, encoding="utf-8"):
         line = line.rstrip("\n")
         if not line or line.startswith("#"):
             continue
         p = line.split("\t")
-        rows.append((p[0].split(","), int(p[1]), int(p[2]), p[3], p[4], p[5]))
+        m = models[p[3]]                                # a KeyError here means a typo in fleet.tsv
+        rows.append((p[0].split(","), int(p[1]), int(p[2]), m["name"],
+                     "electric" if m["electric"] else "diesel", str(m["decks"])))
     return rows
 
 

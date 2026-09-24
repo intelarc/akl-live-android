@@ -358,8 +358,13 @@ private fun DrawScope.drawStop(x: Float, ground: Float, dp: Float) {
     drawCircle(Color.White, 1.3f * dp, c + Offset(2.8f * dp, 3.6f * dp))
 }
 
-/** Which bus to draw: single or double deck, diesel or electric. */
-class BusLook(val doubleDeck: Boolean = false, val electric: Boolean = false)
+/** Which bus to draw: single or double deck, diesel or electric, two axles or three. */
+class BusLook(val doubleDeck: Boolean = false, val electric: Boolean = false, val axles: Int = 2) {
+    companion object {
+        fun of(model: nz.aryan.akllive.data.BusModel?) =
+            BusLook(model?.doubleDeck == true, model?.electric == true, model?.axles ?: 2)
+    }
+}
 
 /** An AT Metro bus, facing right. [baseY] is where the tyres meet the road; [bh] is a single deck's height. */
 internal fun DrawScope.drawBus(
@@ -446,8 +451,8 @@ internal fun DrawScope.drawBus(
             lineTo(bx - 0.6f * u, by + 2f * u); lineTo(bx + 1.3f * u, by - 0.3f * u); lineTo(bx + 0.4f * u, by - 0.3f * u); close()
         }, Color(0xFF7CFFB2))
     }
-    // wheels
-    for (fx in floatArrayOf(0.2f, 0.8f)) {
+    // wheels: a tri-axle has a tag axle just behind the drive axle
+    for (fx in if (look.axles >= 3) floatArrayOf(0.15f, 0.3f, 0.8f) else floatArrayOf(0.2f, 0.8f)) {
         val c = Offset(x + bl * fx, baseY - r)
         drawCircle(dark, r * 1.25f, c + Offset(0f, -r * 0.1f))
         drawCircle(Color(0xFF1B1F27), r, c)

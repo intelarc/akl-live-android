@@ -14,6 +14,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import nz.aryan.akllive.data.AtApi
 import nz.aryan.akllive.data.BusRepo
+import nz.aryan.akllive.data.BusTrip
+import nz.aryan.akllive.data.FleetState
+import nz.aryan.akllive.data.LiveRepo
 import nz.aryan.akllive.data.Nz
 import nz.aryan.akllive.data.StationDeparture
 import nz.aryan.akllive.data.StopBoard
@@ -60,6 +63,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val api = AtApi { prefs.apiKey }
     private val busRepo = BusRepo(api)
     private val trainRepo = TrainRepo(api)
+    private val liveRepo = LiveRepo(api)
 
     private val _boards = MutableStateFlow(prefs.stops.map { StopBoard(it) })
     val boards: StateFlow<List<StopBoard>> = _boards
@@ -85,7 +89,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _station = MutableStateFlow<Pair<Int, List<StationDeparture>?>?>(null)
     val station: StateFlow<Pair<Int, List<StationDeparture>?>?> = _station
 
+    /** every bus on the network, polled only while a screen that shows them is open */
+    private val _fleet = MutableStateFlow(FleetState())
+    val fleet: StateFlow<FleetState> = _fleet
+    private val _busTrip = MutableStateFlow<BusTrip?>(null)
+    val busTrip: StateFlow<BusTrip?> = _busTrip
+    /** the model page open on the Fleet tab ("unknown" for the unidentified buses) */
+    val fleetModel = MutableStateFlow<String?>(null)
+    private var liveWatchers = 0
+
     private val kick = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val liveKick = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     @Volatile private var visible = false
 
     init {
@@ -93,12 +107,47 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { loop(30_000) { refreshBuses() } }
         viewModelScope.launch { loop(15_000) { refreshTrains() } }
         viewModelScope.launch { loop(900_000) { Weather.fetch()?.let { _weather.value = it } } }
+        viewModelScope.launch {
+            while (true) {
+                while (!visible || liveWatchers <= 0) delay(400)
+                refreshLive()
+                withTimeoutOrNull(20_000) { liveKick.first() }
+            }
+        }
+    }
+
+    /** Screens showing every bus call this while they're up; the feed is only fetched then. */
+    fun watchLive(on: Boolean) {
+        liveWatchers = maxOf(0, liveWatchers + if (on) 1 else -1)
+        if (on) liveKick.tryEmit(Unit)
+    }
+
+    private suspend fun refreshLive() {
+        try {
+            _fleet.value = FleetState(liveRepo.all(), Nz.nowSec(), loading = false)
+        } catch (e: Exception) {
+            _fleet.value = _fleet.value.copy(loading = false, error = e.message)
+        }
+    }
+
+    /** A bus was tapped on the big map: look up where it's going. */
+    fun selectBus(tripId: String?) {
+        if (_busTrip.value?.tripId == tripId && tripId != null) return
+        _busTrip.value = tripId?.let { BusTrip(it) }
+        if (tripId == null) return
+        viewModelScope.launch {
+            val t = try { liveRepo.trip(tripId) } catch (_: Exception) { return@launch }
+            if (_busTrip.value?.tripId == tripId) _busTrip.value = t
+        }
     }
 
     /** Poll only while the app is on screen; refresh straight away when it comes back. */
     fun setVisible(v: Boolean) {
         visible = v
-        if (v) refresh()
+        if (v) {
+            refresh()
+            liveKick.tryEmit(Unit)
+        }
     }
 
     fun refresh() { kick.tryEmit(Unit) }

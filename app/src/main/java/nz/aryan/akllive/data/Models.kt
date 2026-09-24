@@ -16,6 +16,22 @@ data class Vehicle(
     val occupancy: Int?,
 )
 
+/** A bus somewhere on the network, for the every-bus map and the fleet pages. */
+data class LiveBus(val v: Vehicle, val info: BusInfo) {
+    /** "27H" from a route id like "27H-203"; null when it isn't in service */
+    val route: String? get() = v.routeId?.substringBefore("-")?.takeIf { it.isNotEmpty() }
+}
+
+data class FleetState(
+    val buses: List<LiveBus> = emptyList(),
+    val updated: Long = 0,
+    val loading: Boolean = true,
+    val error: String? = null,
+)
+
+/** Where a tapped bus is going and how late it's running, fetched on demand. */
+data class BusTrip(val tripId: String, val headsign: String? = null, val delay: Int? = null)
+
 /** One bus due at our stop. */
 data class BusDeparture(
     val tripId: String,

@@ -4,14 +4,20 @@ import org.json.JSONObject
 import kotlin.math.cos
 import kotlin.math.sqrt
 
+private val SPACES = Regex("\\s+")
+
 internal fun parseVehicle(e: JSONObject): Vehicle? {
     val v = e.obj("vehicle") ?: return null
     val pos = v.obj("position") ?: return null
     val trip = v.obj("trip")
     val info = v.obj("vehicle")
+    val id = info?.optString("id")?.takeIf { it.isNotEmpty() } ?: e.optString("id")
+    // trains (59xxx) report m/s as GTFS-realtime says, but buses report km/h:
+    // both checked against how far vehicles actually moved between fixes
+    val toKmh = if (id.startsWith("59")) 3.6 else 1.0
     return Vehicle(
-        id = info?.optString("id")?.takeIf { it.isNotEmpty() } ?: e.optString("id"),
-        label = (info?.optString("label") ?: "").replace(Regex("\\s+"), " ").trim(),
+        id = id,
+        label = (info?.optString("label") ?: "").replace(SPACES, " ").trim(),
         tripId = trip?.optString("trip_id")?.takeIf { it.isNotEmpty() },
         routeId = trip?.optString("route_id")?.takeIf { it.isNotEmpty() },
         directionId = trip?.intOrNull("direction_id"),
@@ -19,7 +25,7 @@ internal fun parseVehicle(e: JSONObject): Vehicle? {
         lat = pos.optDouble("latitude"),
         lon = pos.optDouble("longitude"),
         bearing = pos.doubleOrNull("bearing")?.toFloat(),
-        speedKmh = pos.doubleOrNull("speed")?.let { (it * 3.6).toFloat() },
+        speedKmh = pos.doubleOrNull("speed")?.let { (it * toKmh).toFloat() },
         timestamp = v.longOrNull("timestamp") ?: 0L,
         occupancy = v.intOrNull("occupancy_status"),
     )
@@ -137,6 +143,36 @@ class BusRepo(private val api: AtApi) {
             parseVehicle(e)?.let { v -> v.tripId?.let { out[it] = v } }
         }
         return out
+    }
+}
+
+// ======================= every bus =======================
+
+class LiveRepo(private val api: AtApi) {
+    private val headsigns = HashMap<String, String>()
+
+    /** Every bus on the road right now: the whole feed, about 80 KB gzipped. */
+    suspend fun all(): List<LiveBus> {
+        val j = api.get("/realtime/legacy/vehiclelocations") ?: return emptyList()
+        val now = Nz.nowSec()
+        val out = ArrayList<LiveBus>(1200)
+        j.obj("response")?.arr("entity")?.objects { e ->
+            // trains are 59xxx; ferries report unlabelled ship ids; parked buses stop reporting
+            val v = parseVehicle(e) ?: return@objects
+            if (v.id.startsWith("59") || now - v.timestamp > 900 || v.lat.isNaN()) return@objects
+            val info = Fleet.info(v.label) ?: return@objects
+            out += LiveBus(v, info)
+        }
+        return out
+    }
+
+    /** Where a trip is going and how late it is, for a tapped bus. */
+    suspend fun trip(tripId: String): BusTrip {
+        val head = headsigns[tripId] ?: api.get("/gtfs/v3/trips/$tripId")?.obj("data")?.obj("attributes")
+            ?.optString("trip_headsign")?.let(::cleanHeadsign)?.takeIf { it.isNotEmpty() }
+            ?.also { headsigns[tripId] = it }
+        val delay = try { tripUpdates(api, listOf(tripId))[tripId]?.delay } catch (_: Exception) { null }
+        return BusTrip(tripId, head, delay)
     }
 }
 

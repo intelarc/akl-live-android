@@ -96,7 +96,7 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier, keepOn: Boolean, setKee
                  "The train map follows AT's post-CRL network map; the bus art is inspired by MSMGreen/at-departure-board. " +
                  "Maps by MapLibre, with imagery from Esri or LINZ and streets from OpenFreeMap / OpenStreetMap. " +
                  "Weather by Open-Meteo.com (CC BY 4.0). " +
-                 "Bus models come from a community fleet list and may be incomplete.",
+                 "Bus models and fleet numbers come from the AT Metro Wiki (CC BY-SA) and may be incomplete.",
                  style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

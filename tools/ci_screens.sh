@@ -58,9 +58,28 @@ shot 09-trains-satellite
 tap_text "Diagram"
 sleep 2
 
+# every bus in Auckland, then a route search
+tap_text "Live"
+sleep 30
+shot 10-live
+tap_text "Route, fleet number or model"
+sleep 1
+adb shell input text "27H"
+adb shell input keyevent KEYCODE_ENTER
+sleep 6
+shot 11-live-27h
+
+# the fleet list and a model's page
+tap_text "Fleet"
+sleep 10
+shot 12-fleet
+tap_text "CRRC eT12 MAX" || adb shell input tap $((W / 2)) $((H * 2 / 5))
+sleep 12
+shot 13-model
+
 tap_text "Settings"
 sleep 3
-shot 10-settings
+shot 14-settings
 
 adb shell dumpsys window | grep -i "mCurrentFocus" > shots/focus.txt
 adb logcat -d -v brief AndroidRuntime:E '*:S' > shots/crash.txt

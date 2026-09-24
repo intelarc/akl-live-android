@@ -13,6 +13,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -22,6 +23,9 @@ import androidx.compose.ui.Modifier
 import nz.aryan.akllive.ui.AklIcons
 import nz.aryan.akllive.ui.AklTheme
 import nz.aryan.akllive.ui.BusScreen
+import nz.aryan.akllive.ui.FleetScreen
+import nz.aryan.akllive.ui.LiveScreen
+import nz.aryan.akllive.ui.LocalOpenModel
 import nz.aryan.akllive.ui.SettingsScreen
 import nz.aryan.akllive.ui.TrainScreen
 
@@ -57,25 +61,38 @@ private fun AppRoot(vm: AppViewModel, keepScreenOn: (Boolean) -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var keepOn by rememberSaveable { mutableIntStateOf(if (vm.prefs.keepOn) 1 else 0) }
     LaunchedEffect(keepOn) { keepScreenOn(keepOn == 1) }
+    // any bus's model row opens that model's page on the Fleet tab
+    val openModel: (String) -> Unit = { id ->
+        vm.fleetModel.value = id
+        tab = 3
+    }
+    val tabs = listOf("Buses" to AklIcons.Bus, "Trains" to AklIcons.Train, "Live" to AklIcons.Live,
+                      "Fleet" to AklIcons.Fleet, "Settings" to AklIcons.Settings)
     Scaffold(
         bottomBar = {
             NavigationBar {
-                NavigationBarItem(selected = tab == 0, onClick = { tab = 0 },
-                    icon = { Icon(AklIcons.Bus, null) }, label = { Text("Buses") })
-                NavigationBarItem(selected = tab == 1, onClick = { tab = 1 },
-                    icon = { Icon(AklIcons.Train, null) }, label = { Text("Trains") })
-                NavigationBarItem(selected = tab == 2, onClick = { tab = 2 },
-                    icon = { Icon(AklIcons.Settings, null) }, label = { Text("Settings") })
+                tabs.forEachIndexed { i, (label, icon) ->
+                    NavigationBarItem(selected = tab == i, onClick = {
+                            // tapping Fleet again goes back to the list
+                            if (i == 3 && tab == 3) vm.fleetModel.value = null
+                            tab = i
+                        },
+                        icon = { Icon(icon, null) }, label = { Text(label) })
+                }
             }
         },
     ) { pad ->
         val m = Modifier.padding(pad)
-        when (tab) {
-            0 -> BusScreen(vm, m)
-            1 -> TrainScreen(vm, m)
-            else -> SettingsScreen(vm, m, keepOn == 1) { on ->
-                vm.prefs.keepOn = on
-                keepOn = if (on) 1 else 0
+        CompositionLocalProvider(LocalOpenModel provides openModel) {
+            when (tab) {
+                0 -> BusScreen(vm, m)
+                1 -> TrainScreen(vm, m)
+                2 -> LiveScreen(vm, m)
+                3 -> FleetScreen(vm, m)
+                else -> SettingsScreen(vm, m, keepOn == 1) { on ->
+                    vm.prefs.keepOn = on
+                    keepOn = if (on) 1 else 0
+                }
             }
         }
     }

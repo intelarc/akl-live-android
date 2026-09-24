@@ -1,25 +1,81 @@
 # What bus is coming: AT's realtime feed labels every bus with its operator's
 # code and fleet number ("TR3884", "NB5014"). This maps fleet number ranges to
-# the model. tools/fleet_survey.py (a step in every CI build) lists the ranges
-# on the road that aren't covered here yet.
+# a model in models.json. tools/fleet_survey.py (a step in every CI build)
+# lists the ranges on the road that aren't covered here yet.
 #
-# Tab-separated: prefix, first, last, model, power (electric|diesel), decks (1|2)
-# Sources: AT Metro Wiki model pages, operator announcements, and the ranges
-# the survey sees running each route.
+# Tab-separated: prefix, first, last, model id (see models.json)
+# Source: the AT Metro Wiki's model and operator pages (atmetro.fandom.com,
+# CC BY-SA), checked against the ranges the survey sees on the road.
 
-# Tranzurban: Scania + BCI double-deckers from 2018 (NX2), CRRCs for the
-# Northwestern from 2024-25 (eT12 on the 11T/11W, eD12 on the WX1)
-TR	3300	3399	Scania K320UB	diesel	1
-TR	3500	3599	BCI CitiRider FBC6123	diesel	2
-TR	3810	3829	CRRC eT12 MAX	electric	1
-TR	3860	3889	CRRC eD12 MAX	electric	2
+# NZ Bus (Kinetic)
+NB	1400	1499	man17223
+NB	2101	2168	k270
+NB	2400	2499	man17223
+NB	4001	4354	e200
+NB	5001	5077	e500
+NB	5400	5400	ed12
+NB	5720	5721	et12
+NB	5752	5786	et12
+NB	5800	5842	et12
+NB	5900	5979	c13e
+NB	6001	6012	es12
+NB	6101	6120	c10e
 
-# NZ Bus (Kinetic): the Enviro200 fleet, CRRC electrics from 2022-23, and
-# Geely electrics from 2024 (24B/24R, 76, 18)
-NB	4001	4354	Alexander Dennis Enviro200	diesel	1
-NB	5752	5786	CRRC eT12 MAX	electric	1
-NB	5800	5842	CRRC eT12 MAX	electric	1
-NB	5900	5979	Geely C13E	electric	1
+# Go Bus (Kinetic)
+GB	5201	5237	man16250
+GB	5255	5293	man16250
+GB	5401	5434	man18290
+GB	8901	8909	e12
+GB	8936	8936	e12
 
-# Ritchies: the Enviro500 MMC double-deckers (Northern Express and AT Metro)
-RT	1356	1378	Alexander Dennis Enviro500 MMC	diesel	2
+# Ritchies, including the ex-Birkenhead Transport and ex-Pavlovich fleets
+RT	356	359	k270
+RT	449	449	k270
+RT	487	487	k270
+RT	568	571	k270
+RT	639	639	k270
+RT	1132	1132	e500mmc
+RT	1246	1246	k270
+RT	1322	1355	e200mmc
+RT	1356	1386	e500mmc
+RT	1411	1417	man18290
+RT	1431	1431	man17223
+RT	1432	1437	man16250
+RT	1439	1441	man16250
+RT	1443	1447	man16250
+RT	1494	1497	man18290
+RT	3015	3015	e13
+RT	4006	4017	e200
+RT	4018	4019	e200mmc
+RT	4020	4022	e13
+RT	4024	4029	e200mmc
+RT	4377	4378	man17223
+RT	4601	4636	k320
+RT	4701	4705	e200
+RT	4720	4723	e200mmc
+RT	4801	4833	k320
+RT	5601	5602	e200evxlb
+RT	7001	7024	et12
+RT	7201	7290	et12
+RT	7401	7477	es12
+RT	9795	9799	e200
+RT	9807	9810	man16250
+RT	9836	9837	k270
+
+# Howick & Eastern (Transdev)
+HE	156	182	e200
+HE	218	223	man17223
+HE	500	518	e500
+HE	604	611	e13
+
+# Tranzurban (Tranzit)
+TR	3300	3399	k320
+TR	3500	3599	bci6123
+TR	3810	3828	et12
+TR	3860	3885	ed12
+TR	3897	3897	et12
+TR	3898	3898	e13
+
+# Waiheke Bus Company, Bayes
+WB	150	157	e200
+BA	157	158	e500mmc

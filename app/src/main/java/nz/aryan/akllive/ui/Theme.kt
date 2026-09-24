@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -103,6 +104,27 @@ fun punctuality(delay: Int?): Pair<String, Color> {
 
 object AklIcons {
     val Settings = Icons.Filled.Settings
+    val Live = Icons.Filled.Place
+
+    /** A bus side-on, for the fleet list. */
+    val Fleet: ImageVector = ImageVector.Builder("fleet", 24.dp, 24.dp, 24f, 24f).apply {
+        path(fill = SolidColor(Color.Black), pathFillType = PathFillType.EvenOdd) {
+            moveTo(3f, 5f); lineTo(18.5f, 5f)
+            curveTo(19.9f, 5f, 20.9f, 5.9f, 21.2f, 7.2f); lineTo(22f, 11f); lineTo(22f, 16f)
+            curveTo(22f, 16.6f, 21.6f, 17f, 21f, 17f); lineTo(3f, 17f)
+            curveTo(2.4f, 17f, 2f, 16.6f, 2f, 16f); lineTo(2f, 6f)
+            curveTo(2f, 5.4f, 2.4f, 5f, 3f, 5f); close()
+            moveTo(4f, 7.5f); lineTo(8f, 7.5f); lineTo(8f, 11f); lineTo(4f, 11f); close()
+            moveTo(9.5f, 7.5f); lineTo(13.5f, 7.5f); lineTo(13.5f, 11f); lineTo(9.5f, 11f); close()
+            moveTo(15f, 7.5f); lineTo(19.4f, 7.5f); lineTo(20.2f, 11f); lineTo(15f, 11f); close()
+        }
+        path(fill = SolidColor(Color.Black)) {
+            moveTo(4.5f, 18f); arcToRelative(2.2f, 2.2f, 0f, true, true, 4.4f, 0f)
+            arcToRelative(2.2f, 2.2f, 0f, true, true, -4.4f, 0f); close()
+            moveTo(15.1f, 18f); arcToRelative(2.2f, 2.2f, 0f, true, true, 4.4f, 0f)
+            arcToRelative(2.2f, 2.2f, 0f, true, true, -4.4f, 0f); close()
+        }
+    }.build()
 
     // single even-odd paths: windows are holes, so Icon's tint keeps them see-through
     val Bus: ImageVector = ImageVector.Builder("bus", 24.dp, 24.dp, 24f, 24f).apply {

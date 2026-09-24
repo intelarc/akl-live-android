@@ -14,6 +14,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -244,7 +245,7 @@ private fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int, w
                                           fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace))
     }
     val model = next?.vehicle?.busModel()
-    val look = BusLook(doubleDeck = model?.doubleDeck == true, electric = model?.electric == true)
+    val look = BusLook.of(model)
     // the bus glides as its arrival time counts down; a new bus starts from the left
     val eta = next?.let { it.expected - now }
     val target = eta?.let { (1f - it / 1200f).coerceIn(0f, 1f) }
@@ -368,8 +369,11 @@ private fun NextBusDetail(d: BusDeparture, b: StopBoard, color: Color) {
 fun VehicleInfo(v: Vehicle, big: Boolean = false) {
     val info = Fleet.info(v.label) ?: return
     val model = info.model
+    val open = LocalOpenModel.current
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 12.dp, vertical = 10.dp),
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { open(model?.id ?: UNKNOWN_MODEL) }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically) {
         BusGlyph(model, Modifier.size(width = if (big) 56.dp else 48.dp, height = 34.dp))
         Spacer(Modifier.width(12.dp))
@@ -377,7 +381,7 @@ fun VehicleInfo(v: Vehicle, big: Boolean = false) {
             Text(model?.name ?: "${info.operator ?: "Bus"} ${info.fleetNo}", fontWeight = FontWeight.Bold,
                  style = if (big) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
                  maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(if (model == null) "Model not in the fleet list yet"
+            Text(if (model == null) "Model not identified yet"
                  else listOfNotNull(info.operator, info.fleetNo).joinToString(" · "),
                  style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -387,13 +391,15 @@ fun VehicleInfo(v: Vehicle, big: Boolean = false) {
                 if (model.doubleDeck) Chip("Double-decker", Pal.AtBlue)
             }
         }
+        Spacer(Modifier.width(6.dp))
+        Text("›", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 /** A little side view of the bus: single or double deck, with a bolt if it's electric. */
 @Composable
-private fun BusGlyph(model: BusModel?, modifier: Modifier) {
-    val look = BusLook(doubleDeck = model?.doubleDeck == true, electric = model?.electric == true)
+internal fun BusGlyph(model: BusModel?, modifier: Modifier) {
+    val look = BusLook.of(model)
     Canvas(modifier) {
         val bl = size.width
         val bh = if (look.doubleDeck) size.height / 1.6f else size.height / 1.6f * 0.95f
