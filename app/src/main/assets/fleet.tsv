@@ -14,7 +14,12 @@ TR	3500	3599	BCI CitiRider FBC6123	diesel	2
 TR	3810	3829	CRRC eT12 MAX	electric	1
 TR	3860	3889	CRRC eD12 MAX	electric	2
 
-# NZ Bus (Kinetic): the Enviro200 fleet, then CRRC electrics from 2022-23
+# NZ Bus (Kinetic): the Enviro200 fleet, CRRC electrics from 2022-23, and
+# Geely electrics from 2024 (24B/24R, 76, 18)
 NB	4001	4354	Alexander Dennis Enviro200	diesel	1
 NB	5752	5786	CRRC eT12 MAX	electric	1
 NB	5800	5842	CRRC eT12 MAX	electric	1
+NB	5900	5979	Geely C13E	electric	1
+
+# Ritchies: the Enviro500 MMC double-deckers (Northern Express and AT Metro)
+RT	1356	1378	Alexander Dennis Enviro500 MMC	diesel	2

@@ -1,5 +1,6 @@
 package nz.aryan.akllive.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,7 +10,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -36,55 +40,75 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier, keepOn: Boolean, setKee
     var place by remember { mutableStateOf(p.place) }
     var linz by remember { mutableStateOf("") }
     var saved by remember { mutableStateOf(false) }
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(16.dp))
-        OutlinedTextField(stops, { stops = it; saved = false }, Modifier.fillMaxWidth(),
-                          label = { Text("Bus stop numbers") },
-                          supportingText = { Text("The number on the stop sign, comma-separated. 8669 = Aldersgate Rd to the city, 8664 = the other way.") })
-        OutlinedTextField(route, { route = it; saved = false }, Modifier.fillMaxWidth(),
-                          label = { Text("Route") }, supportingText = { Text("Leave empty to show every route at those stops.") })
-        OutlinedTextField(place, { place = it; saved = false }, Modifier.fillMaxWidth(),
-                          label = { Text("Place name") })
-        OutlinedTextField(key, { key = it; saved = false }, Modifier.fillMaxWidth(),
-                          label = { Text("AT API key") },
-                          visualTransformation = PasswordVisualTransformation(),
-                          supportingText = {
-                              Text(if (p.keyIsBuiltIn) "Using the key built into this app. Paste one here to override it."
-                                   else if (p.apiKey.isNotBlank()) "A key is set (ends …${p.apiKey.takeLast(4)})."
-                                   else "Get a free key at dev-portal.at.govt.nz (GTFS product).")
-                          })
-        Spacer(Modifier.height(20.dp))
-        Text("Satellite map", fontWeight = FontWeight.Bold)
-        Text("The satellite view uses Esri's world imagery. With a free LINZ Basemaps key it switches to " +
-             "Toitū Te Whenua LINZ's aerial photos, down to 7.5 cm across Auckland. Request one at basemaps.linz.govt.nz.",
-             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        OutlinedTextField(linz, { linz = it; saved = false }, Modifier.fillMaxWidth(),
-                          label = { Text("LINZ Basemaps key (optional)") },
-                          visualTransformation = PasswordVisualTransformation(),
-                          supportingText = {
-                              Text(if (p.linzIsBuiltIn) "Using the key built into this app."
-                                   else if (p.linzKey.isNotBlank()) "A key is set (ends …${p.linzKey.takeLast(4)}): LINZ aerials."
-                                   else "No key: Esri imagery.")
-                          })
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = { vm.saveSettings(key, stops, route, place, linz); saved = true; key = ""; linz = "" }) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+           verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black,
+             modifier = Modifier.padding(start = 4.dp, top = 4.dp))
+        Section("Your stops") {
+            OutlinedTextField(stops, { stops = it; saved = false }, Modifier.fillMaxWidth(),
+                              label = { Text("Bus stop numbers") },
+                              supportingText = { Text("The number on the stop sign, comma-separated. 8669 = Aldersgate Rd to the city, 8664 = the other way.") })
+            OutlinedTextField(route, { route = it; saved = false }, Modifier.fillMaxWidth(),
+                              label = { Text("Route") }, supportingText = { Text("Leave empty to show every route at those stops.") })
+            OutlinedTextField(place, { place = it; saved = false }, Modifier.fillMaxWidth(),
+                              label = { Text("Place name") })
+        }
+        Section("Keys") {
+            OutlinedTextField(key, { key = it; saved = false }, Modifier.fillMaxWidth(),
+                              label = { Text("AT API key") },
+                              visualTransformation = PasswordVisualTransformation(),
+                              supportingText = {
+                                  Text(if (p.keyIsBuiltIn) "Using the key built into this app. Paste one here to override it."
+                                       else if (p.apiKey.isNotBlank()) "A key is set (ends …${p.apiKey.takeLast(4)})."
+                                       else "Get a free key at dev-portal.at.govt.nz (GTFS product).")
+                              })
+            Text("The satellite map uses Esri's world imagery. With a free LINZ Basemaps key it switches to " +
+                 "Toitū Te Whenua LINZ's aerial photos, down to 7.5 cm across Auckland. Request one at basemaps.linz.govt.nz.",
+                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                 modifier = Modifier.padding(top = 6.dp))
+            OutlinedTextField(linz, { linz = it; saved = false }, Modifier.fillMaxWidth(),
+                              label = { Text("LINZ Basemaps key (optional)") },
+                              visualTransformation = PasswordVisualTransformation(),
+                              supportingText = {
+                                  Text(if (p.linzIsBuiltIn) "Using the key built into this app."
+                                       else if (p.linzKey.isNotBlank()) "A key is set (ends …${p.linzKey.takeLast(4)}): LINZ aerials."
+                                       else "No key: Esri imagery.")
+                              })
+        }
+        Button(onClick = { vm.saveSettings(key, stops, route, place, linz); saved = true; key = ""; linz = "" },
+               modifier = Modifier.fillMaxWidth()) {
             Text(if (saved) "Saved" else "Save")
         }
-        Spacer(Modifier.height(24.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Keep the screen on", fontWeight = FontWeight.Bold)
-                Text("Handy when the phone is standing in as a departure board.",
-                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Section("Display") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Keep the screen on", fontWeight = FontWeight.Bold)
+                    Text("Handy when the phone is standing in as a departure board.",
+                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(keepOn, setKeepOn)
             }
-            Switch(keepOn, setKeepOn)
         }
-        Spacer(Modifier.height(28.dp))
-        Text("AKL Live ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall,
-             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("Live data from the Auckland Transport developer API. Not affiliated with Auckland Transport. " +
-             "The train map follows AT's post-CRL network map; the bus art is inspired by MSMGreen/at-departure-board.",
-             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.padding(horizontal = 4.dp)) {
+            Text("AKL Live ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall,
+                 color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Live data from the Auckland Transport developer API. Not affiliated with Auckland Transport. " +
+                 "The train map follows AT's post-CRL network map; the bus art is inspired by MSMGreen/at-departure-board. " +
+                 "Maps by MapLibre, with imagery from Esri or LINZ and streets from OpenFreeMap / OpenStreetMap. " +
+                 "Bus models come from a community fleet list and may be incomplete.",
+                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun Section(title: String, content: @Composable () -> Unit) {
+    Card(shape = RoundedCornerShape(22.dp),
+         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            content()
+        }
     }
 }
