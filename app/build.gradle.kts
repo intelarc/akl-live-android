@@ -4,11 +4,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// CI supplies these; local builds fall back to a debug signature and no
-// built-in API key (enter one in the app's settings instead).
+// The APK carries no API keys: everyone pastes their own free AT key into
+// Settings. Only the CI screenshot run sets EMBED_KEYS=true so its emulator
+// has live data, and that APK never leaves the runner.
 val runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-val atKey = System.getenv("AT_API_KEY") ?: ""
-val linzKey = System.getenv("LINZ_API_KEY") ?: ""
+val embedKeys = System.getenv("EMBED_KEYS") == "true"
+val atKey = if (embedKeys) System.getenv("AT_API_KEY") ?: "" else ""
+val linzKey = if (embedKeys) System.getenv("LINZ_API_KEY") ?: "" else ""
 val keystore = file("release.p12")
 
 android {

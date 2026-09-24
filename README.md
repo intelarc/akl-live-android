@@ -11,6 +11,11 @@ Open **Releases → latest** on the phone, download `AKL-Live.apk` and open it.
 Android asks once to allow installs from your browser. Every push to `main`
 builds a new signed APK there. Installing it updates the app in place.
 
+The app needs an Auckland Transport API key, and none is built in. Sign up at
+[dev-portal.at.govt.nz](https://dev-portal.at.govt.nz) (it's free), subscribe
+to the GTFS and realtime APIs, and paste your key in the app's Settings. The
+app opens on Settings until a key is set.
+
 ## Buses
 
 The 27H at Aldersgate Road, Hillsborough, both directions: stop 8669 to
@@ -94,7 +99,7 @@ markers are drawn with Compose Canvas. The real maps are
 - satellite: [Esri World Imagery](https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9),
   or with a free [LINZ Basemaps](https://basemaps.linz.govt.nz) key, Toitū Te
   Whenua LINZ's aerial photos (7.5 cm in Auckland, CC BY 4.0). Paste a key in
-  Settings, or build one in with a `LINZ_API_KEY` repository secret.
+  Settings.
 - streets: [OpenFreeMap](https://openfreemap.org) (OpenStreetMap data).
 
 Transit data comes straight from the
@@ -144,8 +149,9 @@ GitHub Actions builds `app-release.apk` on every push to any branch
 (`.github/workflows/build.yml`); only `main` publishes it to the release.
 It uses these repository secrets:
 
-- `AT_API_KEY`: built into the APK as the default key (Settings can override it)
-- `LINZ_API_KEY` (optional): a LINZ Basemaps key for the sharper aerials
+- `AT_API_KEY`: used only by the fleet survey step and the Screenshots
+  workflow's emulator. The published APK never contains a key.
+- `LINZ_API_KEY` (optional): the same, for the sharper aerials in screenshots
 - `KEYSTORE_B64`, `KEYSTORE_PASSWORD`: the signing key. It's kept locally in
   `signing/`, which is gitignored. Back it up: updates must be signed with
   the same key.
@@ -154,7 +160,7 @@ The Screenshots workflow (run it by hand) drives every screen in an emulator
 with live data; pick `build` to shoot a branch instead of the latest release.
 
 Local builds need JDK 17, the Android SDK and Gradle 8.11:
-`gradle :app:assembleRelease`. Without the secrets, you get a debug-signed
-APK with no built-in key.
+`gradle :app:assembleRelease`. Without the signing secrets, you get a
+debug-signed APK.
 
 Not affiliated with Auckland Transport.

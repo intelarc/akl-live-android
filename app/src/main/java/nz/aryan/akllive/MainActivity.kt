@@ -58,7 +58,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun AppRoot(vm: AppViewModel, keepScreenOn: (Boolean) -> Unit) {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    // no API key yet (a fresh install): start on Settings, where it goes
+    var tab by rememberSaveable { mutableIntStateOf(if (vm.prefs.apiKey.isBlank()) 4 else 0) }
     var keepOn by rememberSaveable { mutableIntStateOf(if (vm.prefs.keepOn) 1 else 0) }
     LaunchedEffect(keepOn) { keepScreenOn(keepOn == 1) }
     // any bus's model row opens that model's page on the Fleet tab

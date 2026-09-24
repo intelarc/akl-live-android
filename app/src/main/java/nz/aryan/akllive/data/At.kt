@@ -54,7 +54,7 @@ object Nz {
 class AtApi(private val key: () -> String) {
     suspend fun get(path: String): JSONObject? = withContext(Dispatchers.IO) {
         val k = key()
-        if (k.isBlank()) throw IOException("No API key - add one in Settings")
+        if (k.isBlank()) throw IOException("No AT API key yet: get a free one at dev-portal.at.govt.nz and paste it in Settings")
         val c = URL("https://api.at.govt.nz$path").openConnection() as HttpURLConnection
         c.connectTimeout = 15_000
         c.readTimeout = 25_000

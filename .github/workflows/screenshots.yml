@@ -38,6 +38,8 @@ jobs:
       - name: Build this branch
         if: inputs.apk == 'build'
         env:
+          # keys built in so the emulator shows live data; this APK isn't uploaded anywhere
+          EMBED_KEYS: "true"
           AT_API_KEY: ${{ secrets.AT_API_KEY }}
           LINZ_API_KEY: ${{ secrets.LINZ_API_KEY }}
         run: |
