@@ -81,6 +81,7 @@ import nz.aryan.akllive.data.Nz
 import nz.aryan.akllive.data.RouteData
 import nz.aryan.akllive.data.StopBoard
 import nz.aryan.akllive.data.Vehicle
+import nz.aryan.akllive.data.Weather
 import nz.aryan.akllive.data.occupancyText
 import kotlin.math.asin
 import kotlin.math.cos
@@ -127,6 +128,7 @@ fun BusScreen(vm: AppViewModel, modifier: Modifier) {
     val pulling by vm.pulling.collectAsStateWithLifecycle()
     val basemap by vm.basemap.collectAsStateWithLifecycle()
     val linzKey by vm.linzKey.collectAsStateWithLifecycle()
+    val weather by vm.weather.collectAsStateWithLifecycle()
     val now by rememberNow()
     val frameT = rememberFrameTime()
     var mapOpen by rememberSaveable { mutableStateOf(false) }
@@ -143,8 +145,8 @@ fun BusScreen(vm: AppViewModel, modifier: Modifier) {
             contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            item { BusHeader(vm.prefs.place, vm.prefs.route, now, boards, error) { vm.pullRefresh() } }
-            itemsIndexed(boards, key = { _, b -> b.code }) { i, b -> BusCard(b, now, frameT, i) }
+            item { BusHeader(vm.prefs.place, vm.prefs.route, now, boards, error, weather) { vm.pullRefresh() } }
+            itemsIndexed(boards, key = { _, b -> b.code }) { i, b -> BusCard(b, now, frameT, i, weather) }
             item {
                 RouteMapCard(boards, now, vm.prefs.place, basemap, linzKey, frameT) { mapOpen = true }
             }
@@ -160,7 +162,7 @@ fun BusScreen(vm: AppViewModel, modifier: Modifier) {
 
 @Composable
 private fun BusHeader(place: String, route: String, now: Long, boards: List<StopBoard>, error: String?,
-                      onRefresh: () -> Unit) {
+                      weather: Weather?, onRefresh: () -> Unit) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -171,6 +173,10 @@ private fun BusHeader(place: String, route: String, now: Long, boards: List<Stop
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(Nz.time(now), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                weather?.let {
+                    Text("${Math.round(it.tempC)}° · ${it.describe(isNight(Nz.hour()))}",
+                         style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 LiveBadge(boards.maxOfOrNull { it.updated } ?: 0L, now)
             }
             IconButton(onClick = onRefresh) { Icon(Icons.Filled.Refresh, "Refresh") }
@@ -227,7 +233,7 @@ fun LiveBadge(updated: Long, now: Long) {
 }
 
 @Composable
-private fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int) {
+private fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int, weather: Weather?) {
     val next = b.departures.firstOrNull()
     val city = b.headsign.contains("Britomart", true) || b.headsign.contains("City", true)
     val scenery = remember(city, index) { Scenery(city, index) }
@@ -252,7 +258,8 @@ private fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int) {
                 drawBusScene(scenery, Nz.hour(), frameT.value,
                              if (next == null || eta == null || eta > 1500) null else progress.value,
                              moving = next?.live == true && (eta ?: 0) > 30,
-                             cancelled = next?.cancelled == true, dest = dest, dp = density, look = look)
+                             cancelled = next?.cancelled == true, dest = dest, dp = density, look = look,
+                             wx = weather)
             }
             // legibility veil over the top of the sky
             Box(Modifier.fillMaxWidth().height(90.dp).background(

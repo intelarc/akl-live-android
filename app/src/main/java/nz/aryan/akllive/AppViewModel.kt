@@ -21,6 +21,7 @@ import nz.aryan.akllive.data.TrainRepo
 import nz.aryan.akllive.data.TrainState
 import nz.aryan.akllive.data.TripDetail
 import nz.aryan.akllive.data.Fleet
+import nz.aryan.akllive.data.Weather
 import nz.aryan.akllive.ui.Basemap
 import kotlin.math.atan2
 import kotlin.math.hypot
@@ -73,6 +74,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _linzKey = MutableStateFlow(prefs.linzKey)
     val linzKey: StateFlow<String> = _linzKey
 
+    private val _weather = MutableStateFlow<Weather?>(null)
+    val weather: StateFlow<Weather?> = _weather
+
     private val _trains = MutableStateFlow(TrainState())
     val trains: StateFlow<TrainState> = _trains
 
@@ -88,6 +92,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         Fleet.load(app)
         viewModelScope.launch { loop(30_000) { refreshBuses() } }
         viewModelScope.launch { loop(15_000) { refreshTrains() } }
+        viewModelScope.launch { loop(900_000) { Weather.fetch()?.let { _weather.value = it } } }
     }
 
     /** Poll only while the app is on screen; refresh straight away when it comes back. */

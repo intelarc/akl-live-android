@@ -19,8 +19,11 @@ Britomart and 8664 to Waikowhai. Stops and route can be changed in Settings.
 - **A live scene per direction.** The bus drives toward the stop as its arrival
   counts down, and its wheels turn while it's moving. The sky follows the real
   time of day: sunrise, the sun's arc, sunset, then stars and a crescent moon,
-  with lit windows and the Sky Tower's beacon. The city lane has the Auckland
-  skyline; the Waikowhai lane has houses and pōhutukawa in flower.
+  with lit windows and the Sky Tower's beacon. The weather is Auckland's real
+  weather ([Open-Meteo](https://open-meteo.com)): cloud cover greys the sky, and
+  it drizzles, rains, fogs over or flashes with thunder when Auckland does. The
+  city lane has the skyline with Rangitoto behind; the Waikowhai lane has houses,
+  pōhutukawa in flower and Maungakiekie's obelisk.
 - **The next bus in detail.** It shows the expected arrival against the
   timetable, on time or minutes late, and a track of the stops between the bus
   and you with the last one it passed. From its GPS it also shows how far away
