@@ -63,7 +63,7 @@ tap_text "Live"
 sleep 30
 shot 10-live
 tap_text "Route, fleet number or model"
-sleep 1
+sleep 4                                   # the keyboard is slow to come up on the CI emulator
 adb shell input text "27H"
 adb shell input keyevent KEYCODE_ENTER
 sleep 6

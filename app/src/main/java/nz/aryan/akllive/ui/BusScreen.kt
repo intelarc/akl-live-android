@@ -378,12 +378,14 @@ fun VehicleInfo(v: Vehicle, big: Boolean = false) {
         BusGlyph(model, Modifier.size(width = if (big) 56.dp else 48.dp, height = 34.dp))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(model?.name ?: "${info.operator ?: "Bus"} ${info.fleetNo}", fontWeight = FontWeight.Bold,
+            // "Enviro500" up top, "Alexander Dennis · NZ Bus · NB5028" under it, so nothing gets cut off
+            Text(model?.short ?: "${info.operator ?: "Bus"} ${info.fleetNo}", fontWeight = FontWeight.Bold,
                  style = if (big) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
                  maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(if (model == null) "Model not identified yet"
-                 else listOfNotNull(info.operator, info.fleetNo).joinToString(" · "),
-                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                 else listOfNotNull(model.maker, info.operator, info.fleetNo).joinToString(" · "),
+                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                 maxLines = 2)
         }
         if (model != null) {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {

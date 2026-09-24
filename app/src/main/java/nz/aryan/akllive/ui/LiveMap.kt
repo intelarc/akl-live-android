@@ -318,6 +318,7 @@ fun LiveMap(
     LaunchedEffect(style, crowd) {
         val s = style ?: return@LaunchedEffect
         if (!s.isFullyLoaded) return@LaunchedEffect
+        if (crowd.isEmpty() && s.getSource("crowd") == null) return@LaunchedEffect   // maps without a crowd
         val src = crowdSource(s, density)
         val start = SystemClock.elapsedRealtime()
         val seen = HashSet<String>(crowd.size * 2)
