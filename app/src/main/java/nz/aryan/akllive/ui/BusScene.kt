@@ -108,7 +108,7 @@ private val Lit = Color(0xFFFFD98A)
  */
 fun DrawScope.drawBusScene(
     s: Scenery, hour: Float, t: Float, progress: Float?, moving: Boolean,
-    cancelled: Boolean, dest: TextLayoutResult?, dp: Float,
+    cancelled: Boolean, dest: TextLayoutResult?, dp: Float, look: BusLook = BusLook(),
 ) {
     val w = size.width
     val h = size.height
@@ -170,6 +170,9 @@ fun DrawScope.drawBusScene(
         lineTo(w, ground); close()
     }
     drawPath(hills, sky.hills)
+    // a landmark on the horizon: Rangitoto out past the city, Maungakiekie over the suburbs
+    val haze = lerp(sky.hills, sky.bottom, 0.18f)
+    if (s.city) drawRangitoto(haze, w, h, ground) else drawMaungakiekie(haze, night, w, h, ground, dp)
 
     if (s.city) drawCity(s, sky, night, t, w, h, ground, dp) else drawSuburb(s, sky, night, w, h, ground, dp)
 
@@ -197,8 +200,40 @@ fun DrawScope.drawBusScene(
         val x0 = -bl * 0.5f
         val x1 = stopX - bl - 8 * dp
         val bx = x0 + (x1 - x0) * progress.coerceIn(0f, 1f)
-        drawBus(bx, ground + 2 * dp + (h - ground) * 0.12f, bl, bh, t, night, moving, cancelled, dest, dp)
+        drawBus(bx, ground + 2 * dp + (h - ground) * 0.12f, bl, bh, t, night, moving, cancelled, dest, dp, look)
     }
+}
+
+/** Rangitoto's low, even shield, with its summit bump, as seen from the city. */
+private fun DrawScope.drawRangitoto(col: Color, w: Float, h: Float, ground: Float) {
+    val base = ground - h * 0.11f
+    val rise = h * 0.2f
+    val prof = floatArrayOf(0.56f, 0f, 0.66f, 0.3f, 0.73f, 0.66f, 0.77f, 0.9f, 0.795f, 1f, 0.81f, 0.96f,
+                            0.825f, 1f, 0.85f, 0.9f, 0.89f, 0.66f, 0.96f, 0.3f, 1.04f, 0f)
+    val p = Path().apply {
+        moveTo(prof[0] * w, ground)
+        for (i in prof.indices step 2) lineTo(prof[i] * w, base - prof[i + 1] * rise)
+        lineTo(prof[prof.size - 2] * w, ground); close()
+    }
+    drawPath(p, col)
+}
+
+/** Maungakiekie / One Tree Hill, with the obelisk on top. */
+private fun DrawScope.drawMaungakiekie(col: Color, night: Boolean, w: Float, h: Float, ground: Float, dp: Float) {
+    val cx = w * 0.36f
+    val top = ground - h * 0.33f
+    val p = Path().apply {
+        moveTo(cx - w * 0.24f, ground)
+        cubicTo(cx - w * 0.14f, ground - h * 0.12f, cx - w * 0.09f, top, cx, top)
+        cubicTo(cx + w * 0.07f, top, cx + w * 0.12f, ground - h * 0.16f, cx + w * 0.26f, ground)
+        close()
+    }
+    drawPath(p, col)
+    val ob = Path().apply {
+        moveTo(cx - 2.6f * dp, top + 1 * dp); lineTo(cx - 1f * dp, top - 22 * dp)
+        lineTo(cx, top - 25 * dp); lineTo(cx + 1f * dp, top - 22 * dp); lineTo(cx + 2.6f * dp, top + 1 * dp); close()
+    }
+    drawPath(ob, lerp(col, if (night) Color.Black else Color.White, 0.25f))
 }
 
 private fun DrawScope.drawCity(s: Scenery, sky: Sky, night: Boolean, t: Float, w: Float, h: Float,
@@ -283,65 +318,93 @@ private fun DrawScope.drawStop(x: Float, ground: Float, dp: Float) {
     drawCircle(Color.White, 1.3f * dp, c + Offset(2.8f * dp, 3.6f * dp))
 }
 
-/** An AT Metro bus, facing right. [baseY] is where the tyres meet the road. */
-private fun DrawScope.drawBus(
+/** Which bus to draw: single or double deck, diesel or electric. */
+class BusLook(val doubleDeck: Boolean = false, val electric: Boolean = false)
+
+/** An AT Metro bus, facing right. [baseY] is where the tyres meet the road; [bh] is a single deck's height. */
+internal fun DrawScope.drawBus(
     x: Float, baseY: Float, bl: Float, bh: Float, t: Float, night: Boolean,
-    moving: Boolean, cancelled: Boolean, dest: TextLayoutResult?, dp: Float,
+    moving: Boolean, cancelled: Boolean, dest: TextLayoutResult?, dp: Float, look: BusLook = BusLook(),
 ) {
     val paint = if (cancelled) Color(0xFF8C96A5) else Pal.Bus
     val dark = lerp(paint, Color.Black, 0.35f)
     val r = bh * 0.15f
     val bob = if (moving) sin(t * 7f) * 0.5f * dp else 0f
-    val top = baseY - r - bh * 0.84f + bob
+    val deck = bh * 0.84f
+    val bodyH = if (look.doubleDeck) deck * 1.72f else deck
+    val top = baseY - r - bodyH + bob
+    val low = top + bodyH - deck                      // top of the lower deck
+    val glass = if (night) Color(0xFFFFE6A6) else Color(0xFFCFEFFF)
 
     // shadow
     drawOval(Color.Black.copy(alpha = 0.28f), Offset(x + bl * 0.03f, baseY - r * 0.35f), Size(bl * 0.96f, r * 0.8f))
     // headlight beam at night
     if (night && !cancelled) {
         drawPath(Path().apply {
-            moveTo(x + bl, top + bh * 0.66f); lineTo(x + bl + 70 * dp, baseY - 2 * dp)
-            lineTo(x + bl + 70 * dp, top + bh * 0.4f); close()
+            moveTo(x + bl, low + deck * 0.78f); lineTo(x + bl + 70 * dp, baseY - 2 * dp)
+            lineTo(x + bl + 70 * dp, low + deck * 0.47f); close()
         }, Brush.horizontalGradient(listOf(Color(0x66FFF1C2), Color.Transparent), x + bl, x + bl + 70 * dp))
     }
-    run {
-        // body
-        drawRoundRect(paint, Offset(x, top), Size(bl, bh * 0.84f), CornerRadius(bh * 0.12f))
-        // white roof band and skirt
-        drawRoundRect(Color.White.copy(alpha = 0.9f), Offset(x + bh * 0.05f, top), Size(bl - bh * 0.1f, bh * 0.08f),
-                      CornerRadius(bh * 0.06f))
-        drawRect(dark, Offset(x, top + bh * 0.66f), Size(bl, bh * 0.14f))
-        // windows (lit at night)
-        val glass = if (night) Color(0xFFFFE6A6) else Color(0xFFCFEFFF)
-        val wy = top + bh * 0.15f
-        val wh = bh * 0.34f
-        val paneW = bl * 0.12f
-        for (i in 0 until 5) {
+    // diesel exhaust, puffing out the back while it drives
+    if (!look.electric && moving && !cancelled) {
+        for (k in 0 until 3) {
+            val ph = (t * 0.9f + k / 3f) % 1f
+            drawCircle(Color(0xFF9AA3AE).copy(alpha = 0.32f * (1 - ph)), (2 + ph * 4.5f) * dp,
+                       Offset(x - 2 * dp - ph * 20 * dp, baseY - r * 0.9f - ph * 7 * dp))
+        }
+    }
+    // body, lit from above
+    drawRoundRect(Brush.verticalGradient(listOf(lerp(paint, Color.White, 0.16f), paint, lerp(paint, Color.Black, 0.1f)),
+                                         top, top + bodyH),
+                  Offset(x, top), Size(bl, bodyH), CornerRadius(bh * 0.12f))
+    // white roof band and skirt
+    drawRoundRect(Color.White.copy(alpha = 0.9f), Offset(x + bh * 0.05f, top), Size(bl - bh * 0.1f, bh * 0.08f),
+                  CornerRadius(bh * 0.06f))
+    drawRect(dark, Offset(x, low + deck * 0.786f), Size(bl, deck * 0.167f))
+    // windows (lit at night): the upper deck runs right to the front
+    val paneW = bl * 0.12f
+    val decks = if (look.doubleDeck) listOf(top + deck * 0.06f to true, low to false) else listOf(low to false)
+    for ((dy, upper) in decks) {
+        val wy = dy + deck * 0.18f
+        val wh = deck * (if (upper) 0.46f else 0.405f)
+        for (i in 0 until (if (upper) 6 else 5)) {
+            if (!upper && i == 4) continue                // the rear door goes here
             val px = x + bl * 0.05f + i * (paneW + bl * 0.02f)
-            if (i == 4) continue                    // the rear door goes here
-            drawRoundRect(glass, Offset(px, wy), Size(paneW, wh), CornerRadius(2.5f * dp))
+            val pw = if (upper && i == 5) bl * 0.2f else paneW
+            drawRoundRect(glass, Offset(px, wy), Size(pw, wh), CornerRadius(2.5f * dp))
             drawRect(Color.White.copy(alpha = if (night) 0.1f else 0.45f), Offset(px + paneW * 0.12f, wy + 2 * dp),
                      Size(paneW * 0.18f, wh - 4 * dp))
         }
-        // doors
-        for (dxf in floatArrayOf(0.05f + 4 * 0.14f, 0.74f)) {
-            val dxp = x + bl * dxf
-            drawRoundRect(dark, Offset(dxp, wy - 1 * dp), Size(bl * 0.085f, bh * 0.62f), CornerRadius(2 * dp))
-            drawRect(glass.copy(alpha = 0.8f), Offset(dxp + 2 * dp, wy + 1 * dp), Size(bl * 0.085f - 4 * dp, bh * 0.28f))
-        }
-        // windscreen and destination sign
-        drawRoundRect(glass, Offset(x + bl * 0.855f, top + bh * 0.13f), Size(bl * 0.13f, bh * 0.46f),
-                      CornerRadius(4 * dp))
-        drawRoundRect(Color(0xFF111418), Offset(x + bl * 0.84f, top + bh * 0.02f), Size(bl * 0.15f, bh * 0.1f),
-                      CornerRadius(1.5f * dp))
-        dest?.let {
-            drawText(it, topLeft = Offset(x + bl * 0.915f - it.size.width / 2f,
-                                          top + bh * 0.07f - it.size.height / 2f))
-        }
-        // lights
-        drawRoundRect(Color(0xFFFFF4C8), Offset(x + bl - 6 * dp, top + bh * 0.62f), Size(5 * dp, 3 * dp), CornerRadius(1 * dp))
-        drawRoundRect(Color(0xFFE23B3B), Offset(x + 1 * dp, top + bh * 0.6f), Size(3.5f * dp, 5 * dp), CornerRadius(1 * dp))
-        // AT stripe
-        drawRect(Color.White.copy(alpha = 0.85f), Offset(x + bh * 0.1f, top + bh * 0.53f), Size(bl * 0.72f, 1.6f * dp))
+    }
+    // doors
+    val wy = low + deck * 0.18f
+    for (dxf in floatArrayOf(0.05f + 4 * 0.14f, 0.74f)) {
+        val dxp = x + bl * dxf
+        drawRoundRect(dark, Offset(dxp, wy - 1 * dp), Size(bl * 0.085f, deck * 0.74f), CornerRadius(2 * dp))
+        drawRect(glass.copy(alpha = 0.8f), Offset(dxp + 2 * dp, wy + 1 * dp), Size(bl * 0.085f - 4 * dp, deck * 0.33f))
+    }
+    // windscreen and destination sign (between the decks on a double-decker)
+    drawRoundRect(glass, Offset(x + bl * 0.855f, low + deck * 0.155f), Size(bl * 0.13f, deck * 0.55f),
+                  CornerRadius(4 * dp))
+    val signY = if (look.doubleDeck) low - deck * 0.02f else top + bh * 0.02f
+    drawRoundRect(Color(0xFF111418), Offset(x + bl * 0.84f, signY), Size(bl * 0.15f, bh * 0.1f),
+                  CornerRadius(1.5f * dp))
+    dest?.let {
+        drawText(it, topLeft = Offset(x + bl * 0.915f - it.size.width / 2f, signY + bh * 0.05f - it.size.height / 2f))
+    }
+    // lights
+    drawRoundRect(Color(0xFFFFF4C8), Offset(x + bl - 6 * dp, low + deck * 0.738f), Size(5 * dp, 3 * dp), CornerRadius(1 * dp))
+    drawRoundRect(Color(0xFFE23B3B), Offset(x + 1 * dp, low + deck * 0.714f), Size(3.5f * dp, 5 * dp), CornerRadius(1 * dp))
+    // AT stripe, and a lightning bolt on the electrics
+    drawRect(Color.White.copy(alpha = 0.85f), Offset(x + bh * 0.1f, low + deck * 0.63f), Size(bl * 0.72f, 1.6f * dp))
+    if (look.electric && !cancelled) {
+        val bx = x + bl * 0.32f
+        val by = low + deck * 0.635f
+        val u = deck * 0.075f
+        drawPath(Path().apply {
+            moveTo(bx + 1.2f * u, by - 1.6f * u); lineTo(bx - 0.4f * u, by + 0.2f * u); lineTo(bx + 0.5f * u, by + 0.2f * u)
+            lineTo(bx - 0.6f * u, by + 2f * u); lineTo(bx + 1.3f * u, by - 0.3f * u); lineTo(bx + 0.4f * u, by - 0.3f * u); close()
+        }, Color(0xFF7CFFB2))
     }
     // wheels
     for (fx in floatArrayOf(0.2f, 0.8f)) {

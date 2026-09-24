@@ -8,6 +8,7 @@ plugins {
 // built-in API key (enter one in the app's settings instead).
 val runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
 val atKey = System.getenv("AT_API_KEY") ?: ""
+val linzKey = System.getenv("LINZ_API_KEY") ?: ""
 val keystore = file("release.p12")
 
 android {
@@ -21,6 +22,9 @@ android {
         versionCode = runNumber
         versionName = "1.0.$runNumber"
         buildConfigField("String", "AT_API_KEY", "\"$atKey\"")
+        buildConfigField("String", "LINZ_API_KEY", "\"$linzKey\"")
+        // the map's native code: 64-bit phones (and the x86_64 emulator in CI)
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
     signingConfigs {
@@ -68,4 +72,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    // open-source vector/raster maps (the satellite and street views)
+    implementation("org.maplibre.gl:android-sdk:12.3.1")
 }

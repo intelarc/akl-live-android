@@ -34,6 +34,7 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier, keepOn: Boolean, setKee
     var stops by remember { mutableStateOf(p.stops.joinToString(", ")) }
     var route by remember { mutableStateOf(p.route) }
     var place by remember { mutableStateOf(p.place) }
+    var linz by remember { mutableStateOf("") }
     var saved by remember { mutableStateOf(false) }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
         Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -53,8 +54,21 @@ fun SettingsScreen(vm: AppViewModel, modifier: Modifier, keepOn: Boolean, setKee
                                    else if (p.apiKey.isNotBlank()) "A key is set (ends …${p.apiKey.takeLast(4)})."
                                    else "Get a free key at dev-portal.at.govt.nz (GTFS product).")
                           })
+        Spacer(Modifier.height(20.dp))
+        Text("Satellite map", fontWeight = FontWeight.Bold)
+        Text("The satellite view uses Esri's world imagery. With a free LINZ Basemaps key it switches to " +
+             "Toitū Te Whenua LINZ's aerial photos, down to 7.5 cm across Auckland. Request one at basemaps.linz.govt.nz.",
+             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(linz, { linz = it; saved = false }, Modifier.fillMaxWidth(),
+                          label = { Text("LINZ Basemaps key (optional)") },
+                          visualTransformation = PasswordVisualTransformation(),
+                          supportingText = {
+                              Text(if (p.linzIsBuiltIn) "Using the key built into this app."
+                                   else if (p.linzKey.isNotBlank()) "A key is set (ends …${p.linzKey.takeLast(4)}): LINZ aerials."
+                                   else "No key: Esri imagery.")
+                          })
         Spacer(Modifier.height(8.dp))
-        Button(onClick = { vm.saveSettings(key, stops, route, place); saved = true; key = "" }) {
+        Button(onClick = { vm.saveSettings(key, stops, route, place, linz); saved = true; key = ""; linz = "" }) {
             Text(if (saved) "Saved" else "Save")
         }
         Spacer(Modifier.height(24.dp))

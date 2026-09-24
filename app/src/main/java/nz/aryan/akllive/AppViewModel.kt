@@ -20,6 +20,8 @@ import nz.aryan.akllive.data.StopBoard
 import nz.aryan.akllive.data.TrainRepo
 import nz.aryan.akllive.data.TrainState
 import nz.aryan.akllive.data.TripDetail
+import nz.aryan.akllive.data.Fleet
+import nz.aryan.akllive.ui.Basemap
 import kotlin.math.atan2
 import kotlin.math.hypot
 
@@ -42,6 +44,14 @@ class Prefs(ctx: Context) {
         get() = p.getBoolean("keepOn", false)
         set(v) = p.edit().putBoolean("keepOn", v).apply()
     val keyIsBuiltIn get() = p.getString("key", null).isNullOrBlank() && BuildConfig.AT_API_KEY.isNotBlank()
+    /** LINZ Basemaps key for NZ's sharpest aerials; without one the satellite view uses Esri's imagery. */
+    var linzKey: String
+        get() = p.getString("linz", null)?.takeIf { it.isNotBlank() } ?: BuildConfig.LINZ_API_KEY
+        set(v) = p.edit().putString("linz", v.trim()).apply()
+    val linzIsBuiltIn get() = p.getString("linz", null).isNullOrBlank() && BuildConfig.LINZ_API_KEY.isNotBlank()
+    var basemap: Basemap
+        get() = if (p.getString("basemap", null) == "streets") Basemap.Streets else Basemap.Satellite
+        set(v) = p.edit().putString("basemap", if (v == Basemap.Streets) "streets" else "satellite").apply()
 }
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -54,6 +64,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val boards: StateFlow<List<StopBoard>> = _boards
     private val _busError = MutableStateFlow<String?>(null)
     val busError: StateFlow<String?> = _busError
+    /** true from a pull-to-refresh until the buses have reloaded */
+    private val _pulling = MutableStateFlow(false)
+    val pulling: StateFlow<Boolean> = _pulling
+
+    private val _basemap = MutableStateFlow(prefs.basemap)
+    val basemap: StateFlow<Basemap> = _basemap
+    private val _linzKey = MutableStateFlow(prefs.linzKey)
+    val linzKey: StateFlow<String> = _linzKey
 
     private val _trains = MutableStateFlow(TrainState())
     val trains: StateFlow<TrainState> = _trains
@@ -67,6 +85,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     @Volatile private var visible = false
 
     init {
+        Fleet.load(app)
         viewModelScope.launch { loop(30_000) { refreshBuses() } }
         viewModelScope.launch { loop(15_000) { refreshTrains() } }
     }
@@ -78,6 +97,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refresh() { kick.tryEmit(Unit) }
+
+    fun pullRefresh() {
+        _pulling.value = true
+        refresh()
+    }
+
+    fun setBasemap(b: Basemap) {
+        prefs.basemap = b
+        _basemap.value = b
+    }
 
     private suspend fun loop(every: Long, work: suspend () -> Unit) {
         while (true) {
@@ -98,6 +127,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         _boards.value = out
         _busError.value = out.firstNotNullOfOrNull { it.error }
+        _pulling.value = false
     }
 
     private suspend fun refreshTrains() {
@@ -146,8 +176,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun saveSettings(key: String, stops: String, route: String, place: String) {
+    fun saveSettings(key: String, stops: String, route: String, place: String, linz: String) {
         if (key.isNotBlank()) prefs.apiKey = key
+        if (linz.isNotBlank()) {
+            prefs.linzKey = linz
+            _linzKey.value = prefs.linzKey
+        }
         prefs.stops = stops.split(',', ' ').map { it.trim() }.filter { it.isNotEmpty() }
         prefs.route = route
         prefs.place = place

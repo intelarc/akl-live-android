@@ -1,0 +1,20 @@
+# What bus is coming: AT's realtime feed labels every bus with its operator's
+# code and fleet number ("TR3884", "NB5014"). This maps fleet number ranges to
+# the model. tools/fleet_survey.py (a step in every CI build) lists the ranges
+# on the road that aren't covered here yet.
+#
+# Tab-separated: prefix, first, last, model, power (electric|diesel), decks (1|2)
+# Sources: AT Metro Wiki model pages, operator announcements, and the ranges
+# the survey sees running each route.
+
+# Tranzurban: Scania + BCI double-deckers from 2018 (NX2), CRRCs for the
+# Northwestern from 2024-25 (eT12 on the 11T/11W, eD12 on the WX1)
+TR	3300	3399	Scania K320UB	diesel	1
+TR	3500	3599	BCI CitiRider FBC6123	diesel	2
+TR	3810	3829	CRRC eT12 MAX	electric	1
+TR	3860	3889	CRRC eD12 MAX	electric	2
+
+# NZ Bus (Kinetic): the Enviro200 fleet, then CRRC electrics from 2022-23
+NB	4001	4354	Alexander Dennis Enviro200	diesel	1
+NB	5752	5786	CRRC eT12 MAX	electric	1
+NB	5800	5842	CRRC eT12 MAX	electric	1

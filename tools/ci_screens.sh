@@ -17,32 +17,50 @@ adb logcat -c
 adb install -r AKL-Live.apk
 adb shell am start -n nz.aryan.akllive/.MainActivity
 sleep 35
-shot 1-buses
+shot 01-buses
 read W H <<< "$(adb shell wm size | grep -o '[0-9]\+x[0-9]\+' | tr x ' ')"
 adb shell input swipe $((W / 2)) $((H * 3 / 4)) $((W / 2)) $((H / 4)) 600
 sleep 3
-shot 2-buses-lower
+shot 02-buses-lower
 adb shell input swipe $((W / 2)) $((H * 3 / 4)) $((W / 2)) $((H / 5)) 600
-sleep 3
-shot 3-route-map
+sleep 8
+shot 03-route-map
+
+# the full-screen route map, satellite then streets
+tap_text "Open map"
+sleep 15
+shot 04-bus-map-satellite
+tap_text "Map"
+sleep 12
+shot 05-bus-map-streets
+tap_text "Satellite"
+sleep 2
+adb shell input keyevent KEYCODE_BACK
+sleep 2
 
 tap_text "Trains"
 sleep 30
-shot 4-trains
+shot 06-trains
 # zoom in on the City Rail Link
 adb shell input tap $((W / 2)) $((H / 4))
 adb shell input tap $((W / 2)) $((H / 4))
 sleep 3
-shot 5-trains-zoomed
+shot 07-trains-zoomed
 # open a station's departures (a label is a fine target once zoomed)
 tap_text "Waitematā" || true
 adb shell input tap $((W / 2)) $((H / 5))
 sleep 12
-shot 6-station
+shot 08-station
+# every train where it really is
+tap_text "Satellite"
+sleep 15
+shot 09-trains-satellite
+tap_text "Diagram"
+sleep 2
 
 tap_text "Settings"
 sleep 3
-shot 7-settings
+shot 10-settings
 
 adb shell dumpsys window | grep -i "mCurrentFocus" > shots/focus.txt
 adb logcat -d -v brief AndroidRuntime:E '*:S' > shots/crash.txt
