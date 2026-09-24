@@ -1,9 +1,16 @@
 name: Screenshots
 
-# Boots an emulator, installs the latest release APK, drives through the
-# screens with live data and saves screenshots + the crash log.
+# Boots an emulator, installs the app, drives through the screens with live
+# data and saves screenshots + the crash log. By default it shoots the latest
+# release; "build" shoots the branch it's run on instead.
 on:
   workflow_dispatch:
+    inputs:
+      apk:
+        description: "release = latest published APK, build = build this branch"
+        default: release
+        type: choice
+        options: [release, build]
 
 jobs:
   shots:
@@ -12,9 +19,29 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Latest APK
+        if: inputs.apk != 'build'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release download latest -p AKL-Live.apk -R ${{ github.repository }}
+
+      - uses: actions/setup-java@v4
+        if: inputs.apk == 'build'
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        if: inputs.apk == 'build'
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Build this branch
+        if: inputs.apk == 'build'
+        env:
+          AT_API_KEY: ${{ secrets.AT_API_KEY }}
+        run: |
+          gradle :app:assembleRelease --no-daemon --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk AKL-Live.apk
 
       - name: Enable KVM
         run: |
@@ -36,3 +63,16 @@ jobs:
         with:
           name: screenshots
           path: shots/
+
+      - name: Screenshots in the log
+        # small JPEGs as base64, for reviewing a run without downloading it
+        if: always()
+        run: |
+          command -v convert > /dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick)
+          cat shots/crash.txt || true
+          for f in shots/*.png; do
+            convert "$f" -resize 480x -quality 72 /tmp/shot.jpg
+            echo "=== SHOT $(basename "$f" .png) ==="
+            base64 -w 0 /tmp/shot.jpg; echo
+            echo "=== END ==="
+          done

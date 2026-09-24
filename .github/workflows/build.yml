@@ -1,8 +1,9 @@
 name: Build APK
 
+# Every branch gets a build (download it from the run's artifacts); only
+# main publishes to the "latest" release.
 on:
   push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -35,6 +36,13 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
+      - name: Fleet survey
+        # which buses are on the road, and any the fleet table doesn't know yet
+        continue-on-error: true
+        env:
+          AT_API_KEY: ${{ secrets.AT_API_KEY }}
+        run: python3 tools/fleet_survey.py --raw
+
       - name: Name the APK
         run: cp app/build/outputs/apk/release/app-release.apk AKL-Live.apk
 
@@ -44,6 +52,7 @@ jobs:
           path: AKL-Live.apk
 
       - name: Publish to the "latest" release
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
