@@ -22,13 +22,18 @@ Britomart and 8664 to Waikowhai. Stops and route can be changed in Settings.
   with lit windows and the Sky Tower's beacon. The city lane has the Auckland
   skyline; the Waikowhai lane has houses and pōhutukawa in flower.
 - **The next bus in detail.** It shows the expected arrival against the
-  timetable, on time or minutes late, and how many stops away the bus is. From
-  its GPS it also shows how far away it is in km, its speed, how full it is,
-  and its fleet number.
-- **The next five buses** with live and scheduled times.
-- **A live map of the whole 27H.** Both directions are drawn from the stops'
-  real positions, with every bus on its way to you pointing where it's
-  heading, tagged with its countdown.
+  timetable, on time or minutes late, and a track of the stops between the bus
+  and you with the last one it passed. From its GPS it also shows how far away
+  it is in km, its speed and how full it is.
+- **What bus is coming.** The fleet number in AT's feed (`TR3884`, `NB5760`)
+  gives the operator and, where the fleet list knows it, the model: a CRRC
+  eT12 MAX, an eD12 MAX double-decker, an Enviro200... Electric buses get a ⚡,
+  and the scene draws the right bus (double-deckers, no exhaust on electrics).
+- **The next five buses** with live and scheduled times and models.
+- **A live satellite map of the whole 27H.** Both directions over real aerial
+  photos (or a street map), every bus on its way to you gliding between GPS
+  fixes and pointing where it's heading. Tap it for full screen, then tap a bus
+  to see what it is. Pull down anywhere to refresh.
 
 ## Trains
 
@@ -48,13 +53,24 @@ out west. Harbours and volcanic cones sit behind it.
   destination, delay and countdown.
 - **Line filters** (E-W, S-C, O-W) with live counts, and a network overview
   showing how many trains on each line are running late.
+- **Diagram, Satellite or Map.** Switch from the schematic to every train at
+  its real GPS position over aerial photos or a street map.
 - Light and dark map, following the system theme. Landscape puts the map
   beside the panel.
 
 ## How it's built
 
-Kotlin + Jetpack Compose. Everything is drawn with Compose Canvas, with no
-map or chart libraries. Data comes straight from the
+Kotlin + Jetpack Compose. The scenes, the train diagram and the vehicle
+markers are drawn with Compose Canvas. The real maps are
+[MapLibre](https://maplibre.org) (open source), with:
+
+- satellite: [Esri World Imagery](https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9),
+  or with a free [LINZ Basemaps](https://basemaps.linz.govt.nz) key, Toitū Te
+  Whenua LINZ's aerial photos (7.5 cm in Auckland, CC BY 4.0). Paste a key in
+  Settings, or build one in with a `LINZ_API_KEY` repository secret.
+- streets: [OpenFreeMap](https://openfreemap.org) (OpenStreetMap data).
+
+Transit data comes straight from the
 [AT developer API](https://dev-portal.at.govt.nz):
 
 | What | Endpoint |
@@ -64,6 +80,7 @@ map or chart libraries. Data comes straight from the
 | Bus and train GPS | `realtime/legacy/vehiclelocations?tripid=` / `?vehicleid=` (all trains are 59xxx) |
 | Train destination and stops | `gtfs/v3/trips/{id}` and `.../stoptimes` |
 | Station departures | stoptrips for each platform (platforms from `parent_station`) |
+| Bus operator and model | the vehicle label (`TR3884`) looked up in `app/src/main/assets/fleet.tsv` |
 
 Train GPS fixes are snapped onto the nearest station-to-station stretch of the
 train's own line on the schematic. `tools/gen_data.py` generates the map
@@ -74,15 +91,31 @@ geometry, the station/platform table and the 27H's stop lists into
 
 The app polls only while it's on screen: buses every 30 s, trains every 15 s.
 
+### The fleet list
+
+AT's feed doesn't say what model a bus is, only its fleet number with the
+operator's code in front (NB NZ Bus, GB Go Bus, RT Ritchies, HE Howick &
+Eastern, TR Tranzurban, BA Bayes, WB Waiheke). `fleet.tsv` maps fleet number
+ranges to models. Every CI build runs `tools/fleet_survey.py`, which lists each
+range on the road right now, the routes it's running and whether the table
+knows it, so gaps are easy to fill in:
+
+    AT_API_KEY=... python tools/fleet_survey.py
+
 ## Building
 
-GitHub Actions builds `app-release.apk` on every push (`.github/workflows/build.yml`).
-It uses three repository secrets:
+GitHub Actions builds `app-release.apk` on every push to any branch
+(`.github/workflows/build.yml`); only `main` publishes it to the release.
+It uses these repository secrets:
 
 - `AT_API_KEY`: built into the APK as the default key (Settings can override it)
+- `LINZ_API_KEY` (optional): a LINZ Basemaps key for the sharper aerials
 - `KEYSTORE_B64`, `KEYSTORE_PASSWORD`: the signing key. It's kept locally in
   `signing/`, which is gitignored. Back it up: updates must be signed with
   the same key.
+
+The Screenshots workflow (run it by hand) drives every screen in an emulator
+with live data; pick `build` to shoot a branch instead of the latest release.
 
 Local builds need JDK 17, the Android SDK and Gradle 8.11:
 `gradle :app:assembleRelease`. Without the secrets, you get a debug-signed
