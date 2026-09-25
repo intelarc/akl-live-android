@@ -244,8 +244,11 @@ fun PlanScreen(vm: AppViewModel) {
     }
 
     // overlays: choosing a place, the time, the options
+    // remembered so the picker keeps its title while it slides away
+    var lastStart by remember { mutableStateOf(true) }
+    picking?.let { lastStart = it }
     AnimatedVisibility(picking != null, enter = slideInVertically { it / 3 } + fadeIn(), exit = slideOutVertically { it / 3 } + fadeOut()) {
-        val start = picking == true
+        val start = picking ?: lastStart
         PlacePicker(vm, if (start) "Start from" else "Going to", start,
                     onPick = { p ->
                         vm.rememberPlace(p)
@@ -255,7 +258,11 @@ fun PlanScreen(vm: AppViewModel) {
                     onHere = { picking = null; if (start) useHere() else locate { p -> if (p != null) vm.setPlan({ it.copy(to = p) }) } },
                     onClose = { picking = null })
     }
-    if (timeDialog) TimeDialog(st, onDismiss = { timeDialog = false }) { t ->
+    if (timeDialog) TimeDialog(st, onDismiss = {
+        timeDialog = false
+        // "arrive by" with no time picked means nothing: back to leaving now
+        if (vm.plan.value.time == null) vm.setPlan({ it.copy(arriveBy = false) }, run = false)
+    }) { t ->
         timeDialog = false
         vm.setPlan({ it.copy(time = t) })
     }
