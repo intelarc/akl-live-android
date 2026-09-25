@@ -71,18 +71,26 @@ import java.net.URLEncoder
 import kotlin.math.hypot
 import kotlin.math.sin
 
-/** What's under the live overlays: aerial photos, or a street map. */
-enum class Basemap { Satellite, Streets }
+/** What's under the live overlays: aerial photos, a street map, or (for the trains) a quiet map that lets the lines stand out. */
+enum class Basemap { Satellite, Streets, Diagram }
 
-/** A route or rail line; each part is a run of (lat, lon) points. */
+/**
+ * A route or rail line; each part is a run of (lat, lon) points. [offset] shifts it
+ * sideways (px, + is right of its direction). [z]: it grows as you zoom in, as the
+ * train lines do (widths and offsets are for zoom 12).
+ */
 data class MapLine(
     val parts: List<List<Pair<Double, Double>>>,
     val color: Color,
     val width: Float = 4f,
     val offset: Float = 0f,
+    val z: Boolean = false,
 )
 
-/** A stop or station dot. Tappable when it has an [id]; [label] draws its name beside it. */
+/**
+ * A stop or station dot. Tappable when it has an [id]; [label] names it beside it.
+ * [r] scales the dot; [rank] 0 labels show first, 1 from zoom 10.4, the rest from zoom 11.
+ */
 data class MapStop(
     val lat: Double,
     val lon: Double,
@@ -90,6 +98,8 @@ data class MapStop(
     val big: Boolean = false,
     val label: String? = null,
     val id: String? = null,
+    val r: Float = 1f,
+    val rank: Int = 0,
 )
 
 /** A vehicle drawn live over the map, gliding between GPS fixes. */
@@ -128,12 +138,63 @@ object MapStyles {
     fun builder(basemap: Basemap, dark: Boolean, linzKey: String): Style.Builder = when (basemap) {
         Basemap.Streets -> Style.Builder().fromUri("https://tiles.openfreemap.org/styles/" + if (dark) "dark" else "liberty")
         Basemap.Satellite -> Style.Builder().fromJson(satellite(linzKey.trim(), dark))
+        Basemap.Diagram -> Style.Builder().fromJson(diagram(dark))
     }
 
     fun credit(basemap: Basemap, linzKey: String): String = when {
-        basemap == Basemap.Streets -> "© OpenStreetMap contributors · OpenFreeMap"
+        basemap != Basemap.Satellite -> "© OpenStreetMap contributors · OpenFreeMap"
         linzKey.isNotBlank() -> "Imagery © Toitū Te Whenua LINZ, CC BY 4.0"
         else -> "Imagery: Powered by Esri"
+    }
+
+    /** The diagram map's colours: background, water, green, roads, minor roads, rail, buildings, labels, water labels. */
+    class Quiet(val bg: String, val water: String, val green: String, val road: String, val minor: String, val rail: String,
+                val building: String, val label: String, val waterLabel: String)
+    val QUIET_LIGHT = Quiet("#F4F1EA", "#CADFEE", "#E2EAD5", "#E4DED2", "#EBE6DC", "#CFC8BA", "#EAE5DB", "#8B93A2", "#6F93B3")
+    val QUIET_DARK = Quiet("#172234", "#0B1625", "#172A24", "#233049", "#1E2A40", "#2E3C57", "#1C283B", "#6C7B94", "#46709A")
+
+    /** A quiet map for the train diagram: land, water, parks, faint roads and suburb names, so the lines stand out. */
+    private fun diagram(dark: Boolean): String {
+        val c = if (dark) QUIET_DARK else QUIET_LIGHT
+        fun arr(vararg v: Any) = JSONArray().also { a -> v.forEach { a.put(it) } }
+        val zoom = arr("zoom")
+        val name = arr("coalesce", arr("get", "name:en"), arr("get", "name_en"), arr("get", "name"))
+        fun cls(vararg v: String) = arr("match", arr("get", "class"), arr(*v), true, false)
+        fun layer(id: String, type: String, layer: String?, paint: JSONObject, filter: JSONArray? = null, minzoom: Double? = null,
+                  layout: JSONObject? = null) = JSONObject().put("id", id).put("type", type).put("paint", paint).also { o ->
+            if (layer != null) o.put("source", "omt").put("source-layer", layer)
+            filter?.let { o.put("filter", it) }
+            minzoom?.let { o.put("minzoom", it) }
+            layout?.let { o.put("layout", it) }
+        }
+        val round = JSONObject().put("line-cap", "round").put("line-join", "round")
+        val layers = arr(
+            layer("bg", "background", null, JSONObject().put("background-color", c.bg)),
+            layer("dg-green", "fill", "landcover", JSONObject().put("fill-color", c.green).put("fill-opacity", 0.55), cls("wood", "grass")),
+            layer("dg-park", "fill", "park", JSONObject().put("fill-color", c.green).put("fill-opacity", 0.8)),
+            layer("dg-water", "fill", "water", JSONObject().put("fill-color", c.water)),
+            layer("dg-buildings", "fill", "building", JSONObject().put("fill-color", c.building), minzoom = 14.5),
+            layer("dg-minor", "line", "transportation", JSONObject().put("line-color", c.minor)
+                .put("line-width", arr("interpolate", arr("linear"), zoom, 13, 0.6, 17, 5)),
+                  cls("secondary", "tertiary", "minor"), 13.0, round),
+            layer("dg-roads", "line", "transportation", JSONObject().put("line-color", c.road)
+                .put("line-width", arr("interpolate", arr("linear"), zoom, 8, 0.5, 12, 1.6, 16, 6)),
+                  cls("motorway", "trunk", "primary"), 8.0, round),
+            layer("dg-rail", "line", "transportation", JSONObject().put("line-color", c.rail).put("line-width", 1).put("line-dasharray", arr(3, 2)),
+                  arr("all", arr("==", arr("get", "class"), "rail"), arr("!=", arr("get", "brunnel"), "tunnel")), 13.5),
+            layer("dg-water-names", "symbol", "water_name", JSONObject().put("text-color", c.waterLabel), minzoom = 10.0,
+                  layout = JSONObject().put("text-field", name).put("text-font", arr("Noto Sans Italic")).put("text-size", 12)
+                      .put("text-letter-spacing", 0.12).put("text-max-width", 7)),
+            layer("dg-places", "symbol", "place", JSONObject().put("text-color", c.label).put("text-opacity", 0.8),
+                  cls("suburb", "neighbourhood", "quarter", "town", "village"), 10.5,
+                  JSONObject().put("text-field", name).put("text-font", arr("Noto Sans Regular"))
+                      .put("text-size", arr("interpolate", arr("linear"), zoom, 11, 10, 15, 12.5)).put("text-transform", "uppercase")
+                      .put("text-letter-spacing", 0.14).put("text-max-width", 8).put("text-padding", 8)),
+        )
+        val source = JSONObject().put("type", "vector").put("url", "https://tiles.openfreemap.org/planet")
+            .put("attribution", "© OpenMapTiles © OpenStreetMap contributors")
+        return JSONObject().put("version", 8).put("glyphs", "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf")
+            .put("sources", JSONObject().put("omt", source)).put("layers", layers).toString()
     }
 
     private fun satellite(linzKey: String, dark: Boolean): String {
@@ -198,6 +259,10 @@ fun LiveMap(
     onStop: (String) -> Unit = {},
     onBackground: () -> Unit = {},
     onLongPress: ((Double, Double) -> Unit)? = null,
+    /** bars joining a station's platforms, where its lines use different tracks */
+    links: List<MapLine> = emptyList(),
+    /** change it to frame [fit] again (a "whole network" button) */
+    fitKey: Any? = null,
 ) {
     val context = LocalContext.current
     val dark = LocalDark.current
@@ -317,9 +382,9 @@ fun LiveMap(
         m.setStyle(MapStyles.builder(basemap, dark, linzKey)) { s -> if (gen == styleGen[0]) style = s }
     }
 
-    LaunchedEffect(style, lines, stops) {
+    LaunchedEffect(style, lines, stops, links) {
         val s = style ?: return@LaunchedEffect
-        if (s.isFullyLoaded) drawLayers(s, lines, stops)
+        if (s.isFullyLoaded) drawLayers(s, lines, links, stops, basemap, dark)
     }
 
     // the crowd: retarget each vehicle's glide, then feed the map positions for a few seconds
@@ -366,7 +431,7 @@ fun LiveMap(
         m.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(f.lat, f.lon), maxOf(m.cameraPosition.zoom, f.zoom)), 700)
     }
 
-    LaunchedEffect(map, fit) {
+    LaunchedEffect(map, fit, fitKey) {
         val m = map ?: return@LaunchedEffect
         if (fit.isEmpty()) return@LaunchedEffect
         while (mapView.width == 0 || mapView.height == 0) delay(50)
@@ -395,14 +460,6 @@ fun LiveMap(
             fun screen(lat: Double, lon: Double): Offset {
                 val p = proj.toScreenLocation(LatLng(lat, lon))
                 return Offset(p.x, p.y)
-            }
-            // stop names, first come first served, never overlapping
-            val placed = ArrayList<Rect>()
-            for (s in stops) {
-                val label = s.label ?: continue
-                val box = drawTag(measurer, label, screen(s.lat, s.lon) + Offset(if (s.big) 12 * dp else 6 * dp, 0f),
-                                  Color(0xE6FFFFFF), Pal.Navy, dp, anchorLeft = true, avoid = placed)
-                if (box != null) placed += box
             }
             val seen = HashSet<String>()
             for (mk in markers.sortedBy { if (it.id == selected) 1 else 0 }) {
@@ -438,38 +495,108 @@ fun LiveMap(
     }
 }
 
-/** Route lines (with a dark casing so they read over photos) and stop dots, as map layers. */
-private fun drawLayers(s: Style, lines: List<MapLine>, stops: List<MapStop>) {
+private fun hex(c: Color) = "#%06X".format(0xFFFFFF and c.toArgb())
+private fun num(p: String) = Expression.toNumber(Expression.get(p))
+private fun byZoom(p: String) = Expression.interpolate(Expression.linear(), Expression.zoom(),
+    Expression.stop(9, num(p + "9")), Expression.stop(12, num(p + "12")), Expression.stop(16, num(p + "16")))
+
+/**
+ * Route lines (with a casing so they read over photos), the bars joining a
+ * station's platforms, and stop dots with their names, as map layers fed from
+ * one source each. Lines marked z (the train network) grow as you zoom in,
+ * side by side where they share track, with a hairline of the map between them.
+ */
+private fun drawLayers(s: Style, lines: List<MapLine>, links: List<MapLine>, stops: List<MapStop>, basemap: Basemap, dark: Boolean) {
     fun put(layer: Layer) = if (s.getLayer("crowd-dots") != null) s.addLayerBelow(layer, "crowd-dots") else s.addLayer(layer)
-    s.layers.filter { it.id.startsWith("akl-") }.forEach { s.removeLayer(it) }
-    s.sources.filter { it.id.startsWith("akl-") }.forEach { s.removeSource(it) }
-    lines.forEachIndexed { i, line ->
-        val geom = MultiLineString.fromLngLats(line.parts.map { part -> part.map { Point.fromLngLat(it.second, it.first) } })
-        s.addSource(GeoJsonSource("akl-line-$i", Feature.fromGeometry(geom)))
-        put(LineLayer("akl-line-$i-case", "akl-line-$i").withProperties(
-            PropertyFactory.lineColor(Color(0xFF0B1628).toArgb()),
-            PropertyFactory.lineOpacity(0.55f),
-            PropertyFactory.lineWidth(line.width + 3f),
-            PropertyFactory.lineOffset(line.offset),
-            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)))
-        put(LineLayer("akl-line-$i", "akl-line-$i").withProperties(
-            PropertyFactory.lineColor(line.color.toArgb()),
-            PropertyFactory.lineWidth(line.width),
-            PropertyFactory.lineOffset(line.offset),
-            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)))
-    }
-    stops.groupBy { it.color to it.big }.entries.forEachIndexed { k, (key, group) ->
-        val (color, big) = key
-        val fc = FeatureCollection.fromFeatures(group.map { Feature.fromGeometry(Point.fromLngLat(it.lon, it.lat)) })
-        s.addSource(GeoJsonSource("akl-stops-$k", fc))
-        put(CircleLayer("akl-stops-$k", "akl-stops-$k").withProperties(
-            PropertyFactory.circleRadius(if (big) 7f else 3.4f),
+    val zoom = Expression.zoom()
+    if (s.getSource("akl-lines") == null) {
+        val dg = basemap == Basemap.Diagram
+        val caseCol = when {
+            dg -> if (dark) MapStyles.QUIET_DARK.bg else MapStyles.QUIET_LIGHT.bg
+            basemap == Basemap.Streets && !dark -> "#FFFFFF"
+            else -> "#0B1628"
+        }
+        for (id in listOf("akl-lines", "akl-links", "akl-stops")) s.addSource(GeoJsonSource(id))
+        val round = arrayOf(PropertyFactory.lineCap(Property.LINE_CAP_ROUND), PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND))
+        put(LineLayer("akl-lines-case", "akl-lines").withProperties(*round,
+            PropertyFactory.lineColor(Expression.switchCase(Expression.toBool(Expression.get("z")), Expression.color(android.graphics.Color.parseColor(caseCol)),
+                                                            Expression.color(android.graphics.Color.parseColor("#0B1628")))),
+            PropertyFactory.lineOpacity(Expression.switchCase(Expression.toBool(Expression.get("z")), Expression.literal(if (dg) 1f else 0.8f), Expression.literal(0.55f))),
+            PropertyFactory.lineWidth(byZoom("cw")),
+            PropertyFactory.lineOffset(byZoom("o"))))
+        put(LineLayer("akl-lines", "akl-lines").withProperties(*round,
+            PropertyFactory.lineColor(Expression.toColor(Expression.get("c"))),
+            PropertyFactory.lineWidth(byZoom("w")),
+            PropertyFactory.lineOffset(byZoom("o"))))
+        put(LineLayer("akl-links-case", "akl-links").withProperties(*round,
+            PropertyFactory.lineColor(Expression.toColor(Expression.get("c"))),
+            PropertyFactory.lineWidth(Expression.interpolate(Expression.linear(), zoom,
+                Expression.stop(9, 6f), Expression.stop(12, 11.4f), Expression.stop(16, 19f)))))
+        put(LineLayer("akl-links", "akl-links").withProperties(*round,
+            PropertyFactory.lineColor(Color.White.toArgb()),
+            PropertyFactory.lineWidth(Expression.interpolate(Expression.linear(), zoom,
+                Expression.stop(9, 2.8f), Expression.stop(12, 6.2f), Expression.stop(16, 13.8f)))))
+        put(CircleLayer("akl-stops", "akl-stops").withProperties(
             PropertyFactory.circleColor(Color.White.toArgb()),
-            PropertyFactory.circleStrokeColor(color.toArgb()),
-            PropertyFactory.circleStrokeWidth(if (big) 4f else 2f)))
+            PropertyFactory.circleStrokeColor(Expression.toColor(Expression.get("c"))),
+            PropertyFactory.circleRadius(byZoom("rad")),
+            PropertyFactory.circleStrokeWidth(Expression.interpolate(Expression.linear(), zoom,
+                Expression.stop(9, num("sw9")), Expression.stop(13, num("sw13"))))))
+        // names: the most important stations win the space, the rest appear as you zoom in
+        val darkLabels = basemap != Basemap.Satellite && dark
+        put(SymbolLayer("akl-stop-labels", "akl-stops").withProperties(
+            PropertyFactory.textField(Expression.step(zoom, Expression.toString(Expression.get("l0")),
+                Expression.stop(10.4, Expression.toString(Expression.get("l1"))), Expression.stop(11, Expression.toString(Expression.get("label"))))),
+            PropertyFactory.textFont(arrayOf("Noto Sans Bold")),
+            PropertyFactory.textSize(Expression.interpolate(Expression.linear(), zoom,
+                Expression.stop(10, num("ts10")), Expression.stop(14, num("ts14")))),
+            PropertyFactory.textVariableAnchor(arrayOf(Property.TEXT_ANCHOR_LEFT, Property.TEXT_ANCHOR_RIGHT, Property.TEXT_ANCHOR_TOP,
+                                                       Property.TEXT_ANCHOR_BOTTOM, Property.TEXT_ANCHOR_TOP_LEFT, Property.TEXT_ANCHOR_BOTTOM_RIGHT)),
+            PropertyFactory.textRadialOffset(0.95f),
+            PropertyFactory.textJustify(Property.TEXT_JUSTIFY_AUTO),
+            PropertyFactory.symbolSortKey(num("rank")),
+            PropertyFactory.textPadding(3f),
+            PropertyFactory.textMaxWidth(9f),
+            PropertyFactory.textColor(android.graphics.Color.parseColor(if (darkLabels) "#E6ECF5" else "#1A2744")),
+            PropertyFactory.textHaloColor(if (darkLabels) android.graphics.Color.parseColor(if (dg) MapStyles.QUIET_DARK.bg else "#0B1628")
+                                          else android.graphics.Color.argb(235, 255, 255, 255)),
+            PropertyFactory.textHaloWidth(2.2f)))
     }
+    s.getSourceAs<GeoJsonSource>("akl-lines")?.setGeoJson(FeatureCollection.fromFeatures(lines.map { l ->
+        Feature.fromGeometry(MultiLineString.fromLngLats(l.parts.map { part -> part.map { Point.fromLngLat(it.second, it.first) } })).also { f ->
+            val k9 = if (l.z) 0.6f else 1f
+            val k16 = if (l.z) 1.9f else 1f
+            val cw = l.width + if (l.z) 2.2f else 3f
+            f.addStringProperty("c", hex(l.color))
+            f.addBooleanProperty("z", l.z)
+            for ((k, v) in listOf("9" to k9, "12" to 1f, "16" to k16)) {
+                f.addNumberProperty("w$k", l.width * v)
+                f.addNumberProperty("cw$k", cw * v)
+                f.addNumberProperty("o$k", l.offset * v)
+            }
+        }
+    }))
+    s.getSourceAs<GeoJsonSource>("akl-links")?.setGeoJson(FeatureCollection.fromFeatures(links.map { l ->
+        Feature.fromGeometry(MultiLineString.fromLngLats(l.parts.map { part -> part.map { Point.fromLngLat(it.second, it.first) } }))
+            .also { it.addStringProperty("c", hex(l.color)) }
+    }))
+    s.getSourceAs<GeoJsonSource>("akl-stops")?.setGeoJson(FeatureCollection.fromFeatures(stops.map { st ->
+        Feature.fromGeometry(Point.fromLngLat(st.lon, st.lat)).also { f ->
+            val label = st.label ?: ""
+            f.addStringProperty("c", hex(st.color))
+            f.addNumberProperty("rad9", if (st.big) 6.5f else 2f * st.r)
+            f.addNumberProperty("rad12", if (st.big) 7.5f else 3.6f * st.r)
+            f.addNumberProperty("rad16", if (st.big) 9f else 6.4f * st.r)
+            f.addNumberProperty("sw9", if (st.big) 4f else if (st.r > 1.3f) 1.6f else 1.3f)
+            f.addNumberProperty("sw13", if (st.big) 4f else if (st.r > 1.3f) 2.6f else 2f)
+            f.addStringProperty("label", label)
+            f.addStringProperty("l0", if (st.rank <= 0) label else "")
+            f.addStringProperty("l1", if (st.rank <= 1) label else "")
+            f.addNumberProperty("rank", st.rank)
+            f.addNumberProperty("ts10", if (st.rank <= 0) 12f else 11f)
+            f.addNumberProperty("ts14", if (st.rank <= 0) 14f else 12.5f)
+        }
+    }))
 }
 
 /** The crowd's source and layers: a dot per vehicle, a heading arrow, and the route once zoomed in. */
