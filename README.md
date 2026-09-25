@@ -7,6 +7,18 @@ phone version of
 [akl-departure-board](https://github.com/intelarc/akl-departure-board), the
 ESP32 desk display, and brings over the features of the desktop app.
 
+<p align="center">
+  <img src="docs/screenshots/home.jpg" width="30%" alt="Home: live bus scenes for your stops">
+  <img src="docs/screenshots/directions.jpg" width="30%" alt="Directions: trip options ranked, with live times">
+  <img src="docs/screenshots/journey.jpg" width="30%" alt="A journey over the satellite map, step by step">
+</p>
+<p align="center">
+  <img src="docs/screenshots/live.jpg" width="30%" alt="Every bus in Auckland, live">
+  <img src="docs/screenshots/trains.jpg" width="30%" alt="The train network along the real tracks">
+  <img src="docs/screenshots/more.jpg" width="30%" alt="More: search, alerts, routes, the fleet">
+</p>
+<p align="center"><sub>Home · Directions · A journey · Every bus · Trains · More</sub></p>
+
 ## Install
 
 Open **Releases → latest** on the phone, download `AKL-Live.apk` and open it.
