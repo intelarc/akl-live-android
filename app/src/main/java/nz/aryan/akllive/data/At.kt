@@ -123,3 +123,14 @@ fun occupancyText(o: Int?): String? = when (o) {
     6 -> "Not taking passengers"
     else -> null
 }
+
+/** Kilometres between two points (great circle). */
+fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val r = 6371.0
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLon = Math.toRadians(lon2 - lon1)
+    val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+            kotlin.math.cos(Math.toRadians(lat1)) * kotlin.math.cos(Math.toRadians(lat2)) *
+            kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
+    return 2 * r * kotlin.math.asin(kotlin.math.sqrt(a))
+}

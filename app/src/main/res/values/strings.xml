@@ -1,3 +1,14 @@
 <resources>
     <string name="app_name">AKL Live</string>
+    <string name="tile_label">Next bus</string>
+    <string name="widget_label">Next bus</string>
+    <string name="widget_desc">Your next bus each way, live</string>
+    <string name="sc_plan">Directions</string>
+    <string name="sc_plan_long">Plan a trip</string>
+    <string name="sc_live">Live map</string>
+    <string name="sc_live_long">Every bus in Auckland</string>
+    <string name="sc_trains">Trains</string>
+    <string name="sc_trains_long">The train network, live</string>
+    <string name="sc_search">Search</string>
+    <string name="sc_search_long">Search stops and places</string>
 </resources>

@@ -8,11 +8,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
+import android.os.Build
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Text
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,35 +45,130 @@ object Pal {
     val Warn = Color(0xFFE08A12)
     val Late = Color(0xFFD64545)
     val Bus = Color(0xFF0096D6)
+    val Ferry = Color(0xFF00A3A6)
     fun line(i: Int) = Color(MapData.LINE_COLORS[i])
 }
 
+enum class ThemeMode(val label: String) { System("System"), Light("Light"), Dark("Dark") }
+
+/** The app's colour themes, each after something Auckland. */
+enum class Palette(val label: String, val blurb: String, val primary: Long, val secondary: Long, val tertiary: Long) {
+    Waitemata("Waitematā", "Harbour blue, AT's own", 0xFF235EA8, 0xFF3E6A8A, 0xFF00897F),
+    Pohutukawa("Pōhutukawa", "Summer crimson", 0xFFB3261E, 0xFF4E7D3A, 0xFFB07A00),
+    Kawakawa("Kawakawa", "Bush green", 0xFF2E7D4F, 0xFF52655A, 0xFF3B6B8F),
+    Kowhai("Kōwhai", "Spring gold", 0xFF8C6200, 0xFF6F5D3A, 0xFF4B6E3C),
+    Rangitoto("Rangitoto", "Volcanic slate", 0xFF4F5B73, 0xFF6B5E57, 0xFFB5543B),
+    Tui("Tūī", "Iridescent teal", 0xFF1E5E6E, 0xFF5A4E8C, 0xFF2E8B57),
+}
+
+/** Is the app dark right now (it can differ from the system). Maps follow this. */
+val LocalDark = staticCompositionLocalOf { false }
+
+private val White = Color.White
+private val Black = Color.Black
+
+/** A full Material 3 scheme from a palette's three colours. */
+fun schemeFor(p: Palette, dark: Boolean, pureBlack: Boolean): ColorScheme {
+    val pri = Color(p.primary)
+    val sec = Color(p.secondary)
+    val ter = Color(p.tertiary)
+    return if (!dark) lightColorScheme(
+        primary = pri, onPrimary = White,
+        primaryContainer = lerp(pri, White, 0.83f), onPrimaryContainer = lerp(pri, Black, 0.62f),
+        inversePrimary = lerp(pri, White, 0.5f),
+        secondary = sec, onSecondary = White,
+        secondaryContainer = lerp(sec, White, 0.82f), onSecondaryContainer = lerp(sec, Black, 0.62f),
+        tertiary = ter, onTertiary = White,
+        tertiaryContainer = lerp(ter, White, 0.82f), onTertiaryContainer = lerp(ter, Black, 0.62f),
+        background = lerp(White, pri, 0.035f), onBackground = lerp(Color(0xFF1A1C22), pri, 0.18f),
+        surface = lerp(White, pri, 0.035f), onSurface = lerp(Color(0xFF1A1C22), pri, 0.18f),
+        surfaceVariant = lerp(White, pri, 0.11f), onSurfaceVariant = lerp(Color(0xFF45474F), pri, 0.22f),
+        surfaceTint = pri,
+        inverseSurface = lerp(Color(0xFF2E3036), pri, 0.15f), inverseOnSurface = lerp(White, pri, 0.06f),
+        outline = lerp(Color(0xFF767880), pri, 0.18f), outlineVariant = lerp(Color(0xFFC6C7CF), pri, 0.12f),
+        surfaceBright = lerp(White, pri, 0.02f), surfaceDim = lerp(White, pri, 0.13f),
+        surfaceContainerLowest = White,
+        surfaceContainerLow = lerp(White, pri, 0.045f),
+        surfaceContainer = lerp(White, pri, 0.07f),
+        surfaceContainerHigh = lerp(White, pri, 0.095f),
+        surfaceContainerHighest = lerp(White, pri, 0.125f),
+    ) else {
+        val base = if (pureBlack) Black else lerp(Color(0xFF0C0E13), pri, 0.07f)
+        darkColorScheme(
+            primary = lerp(pri, White, 0.48f), onPrimary = lerp(pri, Black, 0.66f),
+            primaryContainer = lerp(pri, Black, 0.3f), onPrimaryContainer = lerp(pri, White, 0.82f),
+            inversePrimary = pri,
+            secondary = lerp(sec, White, 0.5f), onSecondary = lerp(sec, Black, 0.66f),
+            secondaryContainer = lerp(sec, Black, 0.4f), onSecondaryContainer = lerp(sec, White, 0.82f),
+            tertiary = lerp(ter, White, 0.5f), onTertiary = lerp(ter, Black, 0.66f),
+            tertiaryContainer = lerp(ter, Black, 0.4f), onTertiaryContainer = lerp(ter, White, 0.82f),
+            background = base, onBackground = lerp(Color(0xFFE3E4EA), pri, 0.05f),
+            surface = base, onSurface = lerp(Color(0xFFE3E4EA), pri, 0.05f),
+            surfaceVariant = lerp(Color(0xFF2B2E37), pri, 0.14f), onSurfaceVariant = lerp(Color(0xFFC4C6D0), pri, 0.1f),
+            surfaceTint = lerp(pri, White, 0.48f),
+            inverseSurface = lerp(Color(0xFFE3E4EA), pri, 0.05f), inverseOnSurface = lerp(Color(0xFF2E3036), pri, 0.1f),
+            outline = lerp(Color(0xFF8E9099), pri, 0.12f), outlineVariant = lerp(Color(0xFF44474F), pri, 0.12f),
+            surfaceBright = lerp(Color(0xFF363A44), pri, 0.1f), surfaceDim = base,
+            surfaceContainerLowest = if (pureBlack) Black else lerp(Color(0xFF07090D), pri, 0.04f),
+            surfaceContainerLow = lerp(if (pureBlack) Color(0xFF0B0C0F) else Color(0xFF13161D), pri, 0.07f),
+            surfaceContainer = lerp(if (pureBlack) Color(0xFF111217) else Color(0xFF181B23), pri, 0.09f),
+            surfaceContainerHigh = lerp(if (pureBlack) Color(0xFF1A1C22) else Color(0xFF20242D), pri, 0.1f),
+            surfaceContainerHighest = lerp(if (pureBlack) Color(0xFF23262D) else Color(0xFF2A2E38), pri, 0.1f),
+        )
+    }
+}
+
+private val Base = Typography()
+
+/** Material's type scale, heavier at the top: countdowns and titles read at a glance. */
+val AklType = Typography(
+    displayLarge = Base.displayLarge.copy(fontWeight = FontWeight.Black, letterSpacing = (-1.5).sp),
+    displayMedium = Base.displayMedium.copy(fontWeight = FontWeight.Black, letterSpacing = (-1).sp),
+    displaySmall = Base.displaySmall.copy(fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp),
+    headlineLarge = Base.headlineLarge.copy(fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
+    headlineMedium = Base.headlineMedium.copy(fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.25).sp),
+    headlineSmall = Base.headlineSmall.copy(fontWeight = FontWeight.Bold),
+    titleLarge = Base.titleLarge.copy(fontWeight = FontWeight.Bold),
+    titleMedium = Base.titleMedium.copy(fontWeight = FontWeight.Bold),
+    titleSmall = Base.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+    bodyLarge = Base.bodyLarge,
+    bodyMedium = Base.bodyMedium,
+    bodySmall = Base.bodySmall,
+    labelLarge = Base.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+    labelMedium = Base.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+    labelSmall = Base.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+)
+
+val AklShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(18.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(32.dp),
+)
+
 @Composable
-fun AklTheme(content: @Composable () -> Unit) {
-    val scheme = if (isSystemInDarkTheme()) darkColorScheme(
-        primary = Color(0xFF8DB8F2),
-        onPrimary = Color(0xFF0B1B33),
-        background = Color(0xFF0D1522),
-        onBackground = Color(0xFFE3EAF5),
-        surface = Color(0xFF16213A),
-        onSurface = Color(0xFFE3EAF5),
-        surfaceVariant = Color(0xFF1E2B47),
-        onSurfaceVariant = Color(0xFFA9B6CC),
-        secondaryContainer = Color(0xFF26406B),
-        onSecondaryContainer = Color(0xFFE3EAF5),
-    ) else lightColorScheme(
-        primary = Pal.AtBlue,
-        onPrimary = Color.White,
-        background = Pal.Page,
-        onBackground = Pal.Navy,
-        surface = Color.White,
-        onSurface = Pal.Navy,
-        surfaceVariant = Color(0xFFEEF3FA),
-        onSurfaceVariant = Pal.Ink,
-        secondaryContainer = Color(0xFFD3E2F7),
-        onSecondaryContainer = Pal.Navy,
-    )
-    MaterialTheme(colorScheme = scheme, content = content)
+fun AklTheme(
+    mode: ThemeMode = ThemeMode.System,
+    palette: Palette = Palette.Waitemata,
+    dynamic: Boolean = false,
+    pureBlack: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    val dark = when (mode) {
+        ThemeMode.System -> isSystemInDarkTheme()
+        ThemeMode.Light -> false
+        ThemeMode.Dark -> true
+    }
+    val ctx = LocalContext.current
+    val scheme = if (dynamic && Build.VERSION.SDK_INT >= 31) {
+        val d = if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
+        if (dark && pureBlack) d.copy(background = Black, surface = Black, surfaceDim = Black,
+                                      surfaceContainerLowest = Black) else d
+    } else schemeFor(palette, dark, pureBlack)
+    CompositionLocalProvider(LocalDark provides dark) {
+        MaterialTheme(colorScheme = scheme, typography = AklType, shapes = AklShapes, content = content)
+    }
 }
 
 /** A line's code on its colour, like AT's signage ("E-W"). */
