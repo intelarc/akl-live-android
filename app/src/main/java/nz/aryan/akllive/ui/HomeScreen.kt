@@ -335,7 +335,7 @@ private fun NextUp(boards: List<StopBoard>, s: Settings, now: Long) {
                     Box(Modifier.size(10.dp).background(DirColors[i % 2], CircleShape))
                     Spacer(Modifier.width(10.dp))
                     Column {
-                        Text("to ${b.headsign.ifEmpty { "…" }}", style = MaterialTheme.typography.labelMedium,
+                        Text(b.towards, style = MaterialTheme.typography.labelMedium,
                              color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                         Text(big, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, maxLines = 1)
                         Text(small, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)

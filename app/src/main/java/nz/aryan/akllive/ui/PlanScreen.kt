@@ -104,6 +104,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -339,6 +340,16 @@ private fun PlanBody(vm: AppViewModel, st: PlanState, s: nz.aryan.akllive.Settin
                 r.walkOnly?.let { secs ->
                     if (secs <= 25 * 60) item("walk") { WalkOnlyCard(secs, r.direct, s.kiwi) }
                 }
+                // nothing for a while (the small hours): say so, rather than leave it to the times
+                val soonest = r.itineraries.minOfOrNull { leaveAt(it, st.live) }
+                if (st.time == null && soonest != null && soonest - now > 45 * 60) item("quiet") {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                        Text((if (s.kiwi && Nz.now().hour in 0..5) "Quiet hours, e hoa. " else "Nothing for a while. ") +
+                             "The first way there leaves at ${Nz.time(soonest)}, in ${countdown(soonest - now)}.",
+                             Modifier.padding(14.dp), style = MaterialTheme.typography.bodyMedium,
+                             color = MaterialTheme.colorScheme.onTertiaryContainer)
+                    }
+                }
                 if (r.itineraries.isEmpty()) item("none") {
                     EmptyState(Icons.Rounded.Directions, "No way there found",
                                r.note ?: "Nothing within your walking limit and ride count at that time. Try leaving later, or allow more walking in options.")
@@ -485,23 +496,28 @@ fun ItineraryCard(it: Itinerary, live: Map<String, TripLive>, now: Long, leaving
                         firstLive?.delay != null -> punctuality(delay)
                         else -> "Scheduled" to MaterialTheme.colorScheme.onSurfaceVariant
                     }
-                    if (firstLive?.delay != null || firstLive?.vehicle != null) {
-                        Box(Modifier.size(7.dp).background(Pal.Live, CircleShape))
-                        Spacer(Modifier.width(5.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("${first.route} from ${first.from.stop.name}", style = MaterialTheme.typography.bodySmall,
+                             maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (firstLive?.delay != null || firstLive?.vehicle != null) {
+                                Box(Modifier.size(7.dp).background(Pal.Live, CircleShape))
+                                Spacer(Modifier.width(5.dp))
+                            }
+                            Text(listOfNotNull("${Nz.time(first.from.dep + delay)} · $p",
+                                               firstLive?.vehicle?.busModel()?.let { m -> m.short + if (m.electric) " ⚡" else "" })
+                                     .joinToString(" · "),
+                                 style = MaterialTheme.typography.bodySmall, color = c, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
-                    Text(listOfNotNull("${first.route} from ${first.from.stop.name}", p,
-                                       firstLive?.vehicle?.busModel()?.let { m -> m.short + if (m.electric) " ⚡" else "" })
-                             .joinToString(" · "),
-                         style = MaterialTheme.typography.bodySmall, color = c, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                         modifier = Modifier.weight(1f))
-                    if (leavingNow) {
+                    if (leavingNow && firstLive?.cancelled != true) {
                         val secs = leave - now
+                        Spacer(Modifier.width(8.dp))
                         Text(when {
-                            firstLive?.cancelled == true -> ""
-                            secs > 60 -> "Leave in ${countdown(secs)}"
-                            secs > -60 -> "Leave now"
+                            secs > 60 -> "Leave in\n${countdown(secs)}"
+                            secs > -60 -> "Leave\nnow"
                             else -> "Hurry!"
-                        }, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold,
+                        }, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.End,
                              color = if (secs < 120) Pal.Late else MaterialTheme.colorScheme.primary)
                     }
                 }
@@ -529,7 +545,7 @@ internal fun PlacePicker(vm: AppViewModel, title: String, start: Boolean, onPick
         delay(250)
         busy = true
         stops = Timetable.today?.let { net -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { net.searchStops(q, 6) } } ?: emptyList()
-        places = try { Places.search(q) } catch (_: Exception) { emptyList() }
+        places = try { vm.near().let { n -> Places.search(q, n?.first, n?.second) } } catch (_: Exception) { emptyList() }
         busy = false
     }
     if (mapPick) {
@@ -572,19 +588,25 @@ internal fun PlacePicker(vm: AppViewModel, title: String, start: Boolean, onPick
                         items(s.recents, key = { "r-" + it.lat + "," + it.lon }) { p -> HitRow(Icons.Rounded.History, p.name, p.sub) { onPick(p) } }
                     }
                 } else {
-                    if (stops.isNotEmpty()) {
-                        item("sh") { SectionHeader("Stops and stations") }
-                        items(stops, key = { "s-" + it.stop.id }) { h ->
-                            StopRow(h) {
-                                onPick(Place(h.stop.name, if (h.station) "Station" else "Stop ${h.stop.code}", h.stop.lat, h.stop.lon,
-                                             PlaceKind.Stop, h.stop.id, h.stop.code, h.modes))
+                    val stopsSection: () -> Unit = {
+                        if (stops.isNotEmpty()) {
+                            item("sh") { SectionHeader("Stops and stations") }
+                            items(stops, key = { "s-" + it.stop.id }) { h ->
+                                StopRow(h) {
+                                    onPick(Place(h.stop.name, if (h.station) "Station" else "Stop ${h.stop.code}", h.stop.lat, h.stop.lon,
+                                                 PlaceKind.Stop, h.stop.id, h.stop.code, h.modes))
+                                }
                             }
                         }
                     }
-                    if (places.isNotEmpty()) {
-                        item("ph") { SectionHeader("Places") }
-                        items(places, key = { "p-" + it.lat + "," + it.lon }) { p -> HitRow(Icons.Rounded.Place, p.name, p.sub) { onPick(p) } }
+                    val placesSection: () -> Unit = {
+                        if (places.isNotEmpty()) {
+                            item("ph") { SectionHeader("Places") }
+                            items(places, key = { "p-" + it.lat + "," + it.lon }) { p -> HitRow(Icons.Rounded.Place, p.name, p.sub) { onPick(p) } }
+                        }
                     }
+                    // a word is usually a place; a number is a stop off its sign
+                    if (q.any { it.isDigit() }) { stopsSection(); placesSection() } else { placesSection(); stopsSection() }
                     if (!busy && stops.isEmpty() && places.isEmpty()) item("none") {
                         Text("Nothing found for \"$q\"", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

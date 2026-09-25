@@ -194,43 +194,57 @@ fun SearchScreen(vm: AppViewModel) {
             val stops = list.filterIsInstance<SearchHit.StopHit>()
             val places = list.filterIsInstance<SearchHit.PlaceHit>()
             val buses = list.filter { it is SearchHit.ModelHit || it is SearchHit.FleetNoHit }
-            if (routes.isNotEmpty()) {
-                item("rh") { SectionHeader("Routes") }
-                items(routes, key = { "route-" + it.short }) { r ->
-                    Row(Modifier.fillMaxWidth().clickable { nav.go("route/${Uri.encode(r.short)}") }.padding(vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        RouteBadge(r.short, modeOf(r.type), Modifier.width(64.dp), icon = r.type != 3)
-                        Spacer(Modifier.width(12.dp))
-                        Text(r.long.ifEmpty { "Route ${r.short}" }, style = MaterialTheme.typography.bodyMedium, maxLines = 2,
-                             overflow = TextOverflow.Ellipsis)
+            val placesSection: () -> Unit = {
+                if (places.isNotEmpty()) {
+                    item("ph") { SectionHeader("Places") }
+                    items(places, key = { "p-" + it.place.lat + "," + it.place.lon }) { p ->
+                        HitRow(Icons.Rounded.Place, p.place.name, p.place.sub, "Go") { goPlace(p.place) }
                     }
                 }
             }
-            if (stops.isNotEmpty()) {
-                item("sh") { SectionHeader("Stops and stations") }
-                items(stops, key = { "stop-" + it.hit.stop.id }) { h -> StopRow(h.hit) { nav.go("stop/${Uri.encode(h.hit.stop.id)}") } }
-            }
-            if (buses.isNotEmpty()) {
-                item("bh") { SectionHeader("Buses") }
-                items(buses, key = { b -> if (b is SearchHit.ModelHit) "m-" + b.id else "f-" + (b as SearchHit.FleetNoHit).fleetNo }) { b ->
-                    when (b) {
-                        is SearchHit.ModelHit -> HitRow(AklIcons.Fleet, b.name, b.kind) { openModel(b.id) }
-                        is SearchHit.FleetNoHit -> HitRow(AklIcons.Bus, b.fleetNo, listOfNotNull(b.model ?: "Model not known yet", b.operator).joinToString(" · ")) {
-                            openModel(Fleet.info(b.fleetNo)?.model?.id ?: UNKNOWN_MODEL)
+            val routesSection: () -> Unit = {
+                if (routes.isNotEmpty()) {
+                    item("rh") { SectionHeader("Routes") }
+                    items(routes, key = { "route-" + it.short }) { r ->
+                        Row(Modifier.fillMaxWidth().clickable { nav.go("route/${Uri.encode(r.short)}") }.padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            RouteBadge(r.short, modeOf(r.type), Modifier.width(64.dp), icon = r.type != 3)
+                            Spacer(Modifier.width(12.dp))
+                            Text(r.long.ifEmpty { "Route ${r.short}" }, style = MaterialTheme.typography.bodyMedium, maxLines = 2,
+                                 overflow = TextOverflow.Ellipsis)
                         }
-                        else -> {}
                     }
                 }
             }
-            if (places.isNotEmpty()) {
-                item("ph") { SectionHeader("Places") }
-                items(places, key = { "p-" + it.place.lat + "," + it.place.lon }) { p ->
-                    HitRow(Icons.Rounded.Place, p.place.name, p.place.sub, "Directions") { goPlace(p.place) }
+            val stopsSection: () -> Unit = {
+                if (stops.isNotEmpty()) {
+                    item("sh") { SectionHeader("Stops and stations") }
+                    items(stops, key = { "stop-" + it.hit.stop.id }) { h -> StopRow(h.hit) { nav.go("stop/${Uri.encode(h.hit.stop.id)}") } }
                 }
-                item("credit") {
-                    Text("Places from Photon · © OpenStreetMap contributors", style = MaterialTheme.typography.labelSmall,
-                         color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp))
+            }
+            val busesSection: () -> Unit = {
+                if (buses.isNotEmpty()) {
+                    item("bh") { SectionHeader("Buses") }
+                    items(buses, key = { b -> if (b is SearchHit.ModelHit) "m-" + b.id else "f-" + (b as SearchHit.FleetNoHit).fleetNo }) { b ->
+                        when (b) {
+                            is SearchHit.ModelHit -> HitRow(AklIcons.Fleet, b.name, b.kind) { openModel(b.id) }
+                            is SearchHit.FleetNoHit -> HitRow(AklIcons.Bus, b.fleetNo, listOfNotNull(b.model ?: "Model not known yet", b.operator).joinToString(" · ")) {
+                                openModel(Fleet.info(b.fleetNo)?.model?.id ?: UNKNOWN_MODEL)
+                            }
+                            else -> {}
+                        }
+                    }
                 }
+            }
+            // a word is usually somewhere to go; a number is a route, a stop or a bus
+            if (q.any { it.isDigit() }) {
+                routesSection(); stopsSection(); busesSection(); placesSection()
+            } else {
+                placesSection(); stopsSection(); routesSection(); busesSection()
+            }
+            if (places.isNotEmpty()) item("credit") {
+                Text("Places from Photon · © OpenStreetMap contributors", style = MaterialTheme.typography.labelSmall,
+                     color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp))
             }
         }
     }

@@ -355,7 +355,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 net.searchStops(t, 8).forEach { out += SearchHit.StopHit(it) }
             }
         }
-        try { Places.search(t).take(6).forEach { out += SearchHit.PlaceHit(it) } } catch (_: Exception) { }
+        val near = near()
+        try { Places.search(t, near?.first, near?.second).take(6).forEach { out += SearchHit.PlaceHit(it) } } catch (_: Exception) { }
         return out
     }
 
@@ -410,6 +411,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ======================= location =======================
 
+    /** the last fix [here] got, to rank nearby places first */
+    @Volatile private var lastHere: Location? = null
+
+    /** Roughly where you are, without asking: the last fix, the phone's last known one, or home. */
+    @SuppressLint("MissingPermission")
+    fun near(): Pair<Double, Double>? {
+        lastHere?.takeIf { System.currentTimeMillis() - it.time < 30 * 60_000 }?.let { return it.latitude to it.longitude }
+        val ctx = getApplication<Application>()
+        if (ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            val lm = ctx.getSystemService(LocationManager::class.java)
+            val fix = try {
+                listOf(LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
+                    .mapNotNull { p -> runCatching { lm?.getLastKnownLocation(p) }.getOrNull() }.maxByOrNull { it.time }
+            } catch (_: Exception) { null }
+            if (fix != null) return fix.latitude to fix.longitude
+        }
+        return _settings.value.home?.let { it.lat to it.lon }
+    }
+
     /** Where the phone is, if location is allowed and on (null otherwise). */
     @SuppressLint("MissingPermission")
     suspend fun here(): Location? {
@@ -424,11 +445,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
             else -> return null
         }
-        lm.getLastKnownLocation(provider)?.takeIf { System.currentTimeMillis() - it.time < 120_000 }?.let { return it }
+        lm.getLastKnownLocation(provider)?.takeIf { System.currentTimeMillis() - it.time < 120_000 }?.let { lastHere = it; return it }
         val d = CompletableDeferred<Location?>()
         LocationManagerCompat.getCurrentLocation(lm, provider, android.os.CancellationSignal(),
                                                  ContextCompat.getMainExecutor(ctx)) { d.complete(it) }
-        return withTimeoutOrNull(12_000) { d.await() } ?: lm.getLastKnownLocation(provider)
+        return (withTimeoutOrNull(12_000) { d.await() } ?: lm.getLastKnownLocation(provider))?.also { lastHere = it }
     }
 
     // ======================= bus spotting =======================

@@ -183,7 +183,7 @@ fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int, weather: 
                 Column(Modifier.weight(1f)) {
                     // a soft shadow keeps the text readable over clouds and sun
                     val lift = TextStyle(shadow = Shadow(Color.Black.copy(alpha = 0.7f), Offset(0f, 1.5f), 8f))
-                    Text("to ${b.headsign.ifEmpty { "…" }}", color = Color.White, fontWeight = FontWeight.Bold,
+                    Text(b.towards, color = Color.White, fontWeight = FontWeight.Bold,
                          fontSize = 19.sp, style = lift)
                     Text(b.name.ifEmpty { "Stop ${b.code}" } + " · stop ${b.code}", color = Color.White,
                          fontSize = 12.sp, fontWeight = FontWeight.SemiBold, style = lift)

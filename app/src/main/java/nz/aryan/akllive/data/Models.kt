@@ -61,7 +61,10 @@ data class StopBoard(
     val departures: List<BusDeparture> = emptyList(),
     val updated: Long = 0,
     val error: String? = null,
-)
+) {
+    /** "to Britomart", or the stop's name when nothing says where its buses go */
+    val towards: String get() = if (headsign.isNotEmpty()) "to $headsign" else name.ifEmpty { "Stop $code" }
+}
 
 /** A train placed on the schematic map. */
 data class Train(

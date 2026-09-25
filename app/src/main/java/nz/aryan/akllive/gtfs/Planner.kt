@@ -190,6 +190,39 @@ private fun Network.build(rk: Int, e: Int, arrive: Int, tau: Array<IntArray>, pT
 }
 
 /**
+ * The options worth showing, best first. RAPTOR finds the earliest arrivals,
+ * which at night can mean "leave at 3 am and wait three hours for the first
+ * train": those go when a much shorter trip gets there about as soon.
+ * Near-duplicates (same times give or take two minutes, more changes) go too.
+ * Best is door-to-door time, plus four minutes a change, plus half of
+ * how much later than the earliest it arrives (or earlier than the latest it
+ * leaves, arriving by a time).
+ */
+private fun rank(found: List<RawIt>, arriveBy: Boolean): List<RawIt> {
+    if (found.isEmpty()) return found
+    val slack = 120
+    fun dur(x: RawIt) = x.arrive - x.leaveAt()
+    val minArrive = found.minOf { it.arrive }
+    val maxLeave = found.maxOf { it.leaveAt() }
+    fun cost(x: RawIt): Double = dur(x) + 240.0 * maxOf(0, x.rides - 1) +
+        0.5 * (if (arriveBy) maxLeave - x.leaveAt() else x.arrive - minArrive)
+    val order = found.withIndex().associate { (i, x) -> x to i }
+    fun better(b: RawIt, a: RawIt) = cost(b) < cost(a) || (cost(b) == cost(a) && order.getValue(b) < order.getValue(a))
+    val kept = found.filter { a ->
+        found.none { b ->
+            if (b === a) return@none false
+            // as good in every way, give or take two minutes, and better overall
+            val same = b.arrive <= a.arrive + slack && b.leaveAt() >= a.leaveAt() - slack && b.rides <= a.rides && better(b, a)
+            // far shorter, and gets there (or leaves) within 45 minutes of it
+            val wasteful = dur(a) - dur(b) >= 30 * 60 && dur(b) <= dur(a) * 0.6 &&
+                (if (arriveBy) b.leaveAt() >= a.leaveAt() - 45 * 60 else b.arrive <= a.arrive + 45 * 60)
+            same || wasteful
+        }
+    }
+    return kept.sortedBy { cost(it) }
+}
+
+/**
  * Journeys from [from] to [to]. [time] is epoch seconds (leave at, or arrive
  * by); [dayStart] is the epoch second of this network's service-day midnight.
  */
@@ -226,8 +259,9 @@ fun Network.plan(from: GeoPoint, to: GeoPoint, time: Long, dayStart: Long, arriv
         found.sortWith(compareByDescending<RawIt> { it.leaveAt() }.thenBy { it.arrive })
     } else {
         var at = t
-        for (i in 0 until 8) {
-            if (found.size >= count) break
+        // a few more than asked for: some get ranked out as wasteful
+        for (i in 0 until 10) {
+            if (found.size >= count + 3) break
             val res = raptor(access, egress, at, o, secPerM)
             if (res.isEmpty()) break
             addAll(res)
@@ -236,13 +270,7 @@ fun Network.plan(from: GeoPoint, to: GeoPoint, time: Long, dayStart: Long, arriv
         }
         found.sortWith(compareBy<RawIt> { it.arrive }.thenByDescending { it.leaveAt() })
     }
-    // drop options that are worse in every way than another one
-    val kept = found.filter { a ->
-        found.none { b ->
-            b !== a && b.arrive <= a.arrive && b.leaveAt() >= a.leaveAt() && b.rides <= a.rides &&
-                (b.arrive < a.arrive || b.leaveAt() > a.leaveAt() || b.rides < a.rides)
-        }
-    }
+    val kept = rank(found, arriveBy)
     return PlanResult(kept.take(count).map { describe(it, from, to, dayStart) }, direct.roundToInt(), walkOnly)
 }
 

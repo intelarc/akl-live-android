@@ -60,6 +60,8 @@ internal suspend fun tripUpdates(api: AtApi, tripIds: Collection<String>): Map<S
 
 class BusRepo(private val api: AtApi) {
     private val stops = HashMap<String, JSONObject>()                  // code -> attributes
+    /** where buses from each stop were last going, for when none are due (late at night) */
+    private val lastHead = HashMap<String, String>()
     private val schedule = HashMap<String, Pair<Long, List<BusDeparture>>>()
 
     suspend fun board(code: String, route: String): StopBoard {
@@ -103,7 +105,8 @@ class BusRepo(private val api: AtApi) {
             lat = attr.optDouble("stop_lat"),
             lon = attr.optDouble("stop_lon"),
             route = shown.firstOrNull()?.route ?: route,
-            headsign = shown.firstOrNull()?.headsign ?: trips.firstOrNull()?.headsign ?: "",
+            headsign = (shown.firstOrNull()?.headsign ?: trips.firstOrNull()?.headsign)?.also { lastHead[code] = it }
+                ?: lastHead[code] ?: RouteData.ROUTES[code]?.first?.removePrefix("to ") ?: "",
             departures = shown,
             updated = now,
         )

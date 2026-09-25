@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -57,7 +58,7 @@ private class Tab(val route: String, val label: String, val on: ImageVector, val
 
 private val TABS = listOf(
     Tab("home", "Home", Icons.Rounded.Home, Icons.Outlined.Home),
-    Tab("plan", "Directions", Icons.Rounded.Directions, Icons.Outlined.Directions),
+    Tab("plan", "Plan", Icons.Rounded.Directions, Icons.Outlined.Directions),
     Tab("live", "Live", Icons.Rounded.Map, Icons.Outlined.Map),
     Tab("trains", "Trains", Icons.Rounded.Train, Icons.Outlined.Train),
     Tab("more", "More", Icons.Rounded.Apps, Icons.Outlined.Apps),
@@ -115,7 +116,7 @@ fun AklApp(vm: AppViewModel, deepLink: StateFlow<String?>, consumeLink: () -> Un
                                             BadgedBox(badge = { Badge { Text("$mine") } }) { Icon(if (on) t.on else t.off, null) }
                                         } else Icon(if (on) t.on else t.off, null)
                                     },
-                                    label = { Text(t.label) },
+                                    label = { Text(t.label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                 )
                             }
                         }
