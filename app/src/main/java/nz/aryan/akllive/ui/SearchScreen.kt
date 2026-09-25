@@ -81,7 +81,18 @@ private fun quirk(q: String, kiwi: Boolean): String? = when (q.trim().lowercase(
     "chur", "sweet as", "sweet" -> "Chur 🤙"
     "bus", "buses" -> "Plenty of those. Try a route number like 27H, or a stop number off the sign."
     "hobbit", "hobbiton" -> "That's a bit far for an AT HOP card. 🧙"
-    "home" -> null
+    "l&p", "l and p", "lemon and paeroa" -> "World famous in New Zealand."
+    "pineapple lumps" -> "🍍 Sadly not sold on board."
+    "jandals", "jandal" -> "🩴 Perfectly acceptable bus footwear."
+    "pav", "pavlova" -> "🍰 Ours, not Australia's."
+    "kiwi", "🥝" -> "🥝 or 🐦? Either way, sweet as."
+    "flat white" -> "☕ Grab one on the way to the stop."
+    "yeah nah", "nah yeah" -> "Yeah nah, same."
+    "ghost bus", "ghost buses" -> "👻 The one that says 2 min, then vanishes. We see you."
+    "meow", "cat", "meowpcs" -> "🐱 Meow. Have a look at the credits in Settings."
+    "aryanpcs" -> "That's who made this. Kia ora!"
+    "claude" -> "👋 Kia ora, I helped build this app. Now, where are we off to?"
+    "bus nerd" -> "Tap the version number in Settings seven times."
     else -> null
 }
 

@@ -260,5 +260,5 @@ Local builds need JDK 17, the Android SDK and Gradle 8.11:
 `gradle :app:assembleRelease`. Without the signing secrets, you get a
 debug-signed APK.
 
-Made in Tāmaki Makaurau by AryanPCS, programmed with Claude (Anthropic). Not
+Made by AryanPCS, with the assistance of Claude. Not
 affiliated with Auckland Transport.

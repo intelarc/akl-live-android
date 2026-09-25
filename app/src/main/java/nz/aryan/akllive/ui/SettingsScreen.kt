@@ -341,6 +341,14 @@ private fun About(vm: AppViewModel) {
                      7 -> { haptics.heavy(view); vm.toast.tryEmit("🚌 Beep beep! You found the secret depot. You're officially a bus nerd.") }
                  }
              }.padding(vertical = 4.dp))
+        val s by vm.settings.collectAsStateWithLifecycle()
+        Text("Made by ${if (s.meow) "MeowPCS 🐾" else "AryanPCS"}, with the assistance of Claude.",
+             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+             modifier = Modifier.clickable(interactionSource = null, indication = null) {
+                 haptics.tick(view)
+                 vm.update { it.copy(meow = !it.meow) }
+                 vm.toast.tryEmit(if (!s.meow) "Meow mode on 🐱" else "Meow mode off")
+             })
         Text("Live data from the Auckland Transport developer API; not affiliated with Auckland Transport. " +
              "Directions run on AT's GTFS timetable, right on your phone. " +
              "Maps by MapLibre, with imagery from Esri or Toitū Te Whenua LINZ and streets from OpenFreeMap / © OpenStreetMap contributors. " +
@@ -351,30 +359,5 @@ private fun About(vm: AppViewModel) {
         TextButton(onClick = {
             try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/intelarc/akl-live-android"))) } catch (_: Exception) { }
         }) { Text("Source on GitHub") }
-        Credits()
-    }
-}
-
-/** Who made it. Tap the name. */
-@Composable
-private fun Credits() {
-    var meow by rememberSaveable { mutableStateOf(false) }
-    val view = LocalView.current
-    val haptics = LocalHaptics.current
-    Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        HorizontalDivider(Modifier.padding(bottom = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-        Text("Made in Tāmaki Makaurau by", style = MaterialTheme.typography.labelMedium,
-             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(if (meow) "MeowPCS 🐾" else "AryanPCS", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black,
-             color = MaterialTheme.colorScheme.primary,
-             modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { haptics.tick(view); meow = !meow }
-                 .padding(horizontal = 12.dp, vertical = 4.dp))
-        Spacer(Modifier.height(10.dp))
-        Row(Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.tertiary)
-            Spacer(Modifier.width(8.dp))
-            Text("Programmed with Claude, by Anthropic", style = MaterialTheme.typography.labelLarge)
-        }
     }
 }

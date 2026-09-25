@@ -142,6 +142,7 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
     // framed when the screen opens and when "whole network" is tapped, not on every filter change
     val fit = remember(fitKey) { TrainNet.fit(shown) }
     val headings = remember { HashMap<String, Pair<Pt, Float?>>() }
+    var titleTaps by remember { mutableIntStateOf(0) }
 
     // keep a selected station's departures fresh
     LaunchedEffect(selStation, state.updated) { selStation?.let { vm.selectStation(it) } }
@@ -222,7 +223,10 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
                     selected = selTrain, topInset = 70f, fitKey = fitKey, links = stopsAndLinks.second,
                     onMarker = { id -> state.trains.firstOrNull { it.vehicle.id == id }?.let(pickTrain) },
                     onStop = { id -> id.toIntOrNull()?.let(pickStation) }, onBackground = clear)
-            MapHeader(state, now, shown) { li ->
+            MapHeader(state, now, shown, onTitle = {
+                titleTaps++
+                if (titleTaps % 5 == 0) vm.toast.tryEmit(if (titleTaps >= 15) "All aboard the tap train 🚂🚃🚃🚃" else "Choo choo! 🚂")
+            }) { li ->
                 filter = (if (li in shown && shown.size > 1) shown - li else shown + li).sorted()
             }
             if (!tt.ready && tt.loading) {
@@ -285,11 +289,12 @@ private fun TrainViewToggle(mode: Basemap, modifier: Modifier, set: (Basemap) ->
 }
 
 @Composable
-private fun MapHeader(state: TrainState, now: Long, filter: Set<Int>, toggle: (Int) -> Unit) {
+private fun MapHeader(state: TrainState, now: Long, filter: Set<Int>, onTitle: () -> Unit = {}, toggle: (Int) -> Unit) {
     val counts = state.counts()
     Column(Modifier.fillMaxWidth().background(Pal.AtBlue).padding(horizontal = 14.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Ngā Tereina", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Text("Ngā Tereina", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp,
+                 modifier = Modifier.clickable(interactionSource = null, indication = null, onClick = onTitle))
             Spacer(Modifier.width(8.dp))
             Text("Trains · live", color = Color(0xFFBED4F0), fontSize = 14.sp)
             Spacer(Modifier.weight(1f))

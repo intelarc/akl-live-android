@@ -107,8 +107,38 @@ fun <T> rememberPolled(key: Any?, everyMs: Long, fetch: suspend () -> T): State<
     }
 }
 
-/** Kia ora, in the right words for the time of day. */
+/** Matariki public holidays (a Friday that moves with the maramataka). */
+private val MATARIKI = setOf("2026-07-10", "2027-06-25", "2028-07-14", "2029-07-06", "2030-06-21")
+
+/** A day worth a different hello: (greeting in te reo, in English, the line under it). */
+private fun special(): Triple<String, String, String>? {
+    val d = Nz.now().toLocalDate()
+    return when {
+        d.toString() in MATARIKI -> Triple("Mānawatia a Matariki", "Happy Matariki", "Happy Māori New Year ✨")
+        d.monthValue == 1 && d.dayOfMonth == 1 -> Triple("Ngā mihi o te Tau Hou", "Happy New Year", "New year, same bus stop 🎆")
+        d.monthValue == 2 && d.dayOfMonth == 6 -> Triple("", "", "Happy Waitangi Day")
+        d.monthValue == 4 && d.dayOfMonth == 1 -> Triple("", "", "Every bus is on time today. (April Fools 🤡)")
+        d.monthValue == 10 && d.dayOfMonth == 31 -> Triple("", "", "Watch out for ghost buses 👻")
+        d.monthValue == 12 && d.dayOfMonth == 25 -> Triple("Meri Kirihimete", "Merry Christmas", "It's a public holiday: check the times 🎄")
+        d.monthValue == 12 && d.dayOfMonth == 31 -> Triple("", "", "Last buses of the year 🎉")
+        else -> null
+    }
+}
+
+/** What the te reo greetings mean, for a tap on them. */
+val GREETING_MEANS = mapOf(
+    "Mōrena" to "Mōrena: good morning",
+    "Kia ora" to "Kia ora: hello (and thanks, and cheers)",
+    "Ahiahi mārie" to "Ahiahi mārie: good evening",
+    "Pō mārie" to "Pō mārie: good night",
+    "Mānawatia a Matariki" to "Mānawatia a Matariki: celebrate Matariki, the Māori New Year",
+    "Ngā mihi o te Tau Hou" to "Ngā mihi o te Tau Hou: happy New Year",
+    "Meri Kirihimete" to "Meri Kirihimete: merry Christmas",
+)
+
+/** Kia ora, in the right words for the time of day (or the day). */
 fun greeting(kiwi: Boolean): String {
+    special()?.let { (reo, en, _) -> if (reo.isNotEmpty()) return if (kiwi) reo else en }
     val h = Nz.now().hour
     return if (kiwi) when (h) {
         in 5..11 -> "Mōrena"
@@ -134,6 +164,7 @@ fun vibe(boards: List<StopBoard>, w: Weather?, s: Settings, now: Long): String {
         next == null -> if (k) "Quiet out there. No buses for a bit" else "No buses coming soon"
         next.cancelled -> if (k) "Your ${next.route} got cancelled. Gutted." else "Your next ${next.route} is cancelled"
         late >= 5 -> if (k) "The ${next.route}'s running $late min late, eh" else "The ${next.route} is $late min late"
+        special() != null -> special()!!.third
         w != null && w.rain >= 2 -> if (k) "Bit wet out there. Grab a brolly ☔" else "It's raining"
         model?.doubleDeck == true -> "Double-decker incoming: front seat upstairs? 🚌"
         model?.electric == true -> "Your next ${next.route} is electric ⚡"
@@ -179,7 +210,7 @@ fun HomeScreen(vm: AppViewModel) {
             }
             item { NextUp(boards, s, now) }
             itemsIndexed(boards, key = { _, b -> "board-" + b.code }) { i, b ->
-                BusCard(b, now, frameT, i, weather,
+                BusCard(b, now, frameT, i, weather, meow = s.meow,
                         onTrack = { d -> notify { vm.track(b, d) } },
                         onOpen = { nav.go("stop/${android.net.Uri.encode(b.code)}") })
             }
@@ -208,7 +239,12 @@ private fun HomeHeader(vm: AppViewModel, s: Settings, boards: List<StopBoard>, w
     Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(top = 14.dp, start = 4.dp),
         verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {
-            Text("${greeting(s.kiwi)},", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            val hello = greeting(s.kiwi)
+            // tap the te reo for what it means
+            Text("$hello${if (s.meow) " 🐾" else ""},", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary,
+                 modifier = Modifier.clickable(interactionSource = null, indication = null) {
+                     GREETING_MEANS[hello]?.let { vm.toast.tryEmit(it) }
+                 })
             Text(s.place, style = MaterialTheme.typography.headlineLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(vibe(boards, w, s, now), style = MaterialTheme.typography.bodyMedium,
                  color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
