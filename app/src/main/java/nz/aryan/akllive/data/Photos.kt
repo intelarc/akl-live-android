@@ -27,33 +27,58 @@ object Photos {
     private val mem = HashMap<String, Photo?>()
     private val lock = Mutex()
 
+    private const val MISS_MS = 24L * 3600 * 1000
+    private const val VERSION = 2
+
     suspend fun forModel(ctx: Context, m: BusModel): Photo? = lock.withLock {
         if (mem.containsKey(m.id)) return@withLock mem[m.id]
         val prefs = ctx.getSharedPreferences("photos", Context.MODE_PRIVATE)
-        prefs.getString(m.id, null)?.let { raw ->
+        prefs.getString("v$VERSION:" + m.id, null)?.let { raw ->
             val o = runCatching { JSONObject(raw) }.getOrNull()
-            if (o != null && System.currentTimeMillis() - o.optLong("t") < KEEP_MS) {
-                val p = o.optString("url").takeIf { it.isNotEmpty() }?.let { Photo(it, o.optString("page"), o.optString("credit")) }
+            val url = o?.optString("url").orEmpty()
+            // a photo keeps a fortnight; not finding one is tried again tomorrow
+            if (o != null && System.currentTimeMillis() - o.optLong("t") < (if (url.isEmpty()) MISS_MS else KEEP_MS)) {
+                val p = url.takeIf { it.isNotEmpty() }?.let { Photo(it, o.optString("page"), o.optString("credit")) }
                 mem[m.id] = p
                 return@withLock p
             }
         }
-        val found = try {
-            search("${m.name} Auckland") ?: search("${m.short} Auckland bus") ?: search("${m.name} bus")
-        } catch (e: Exception) {
-            return@withLock null                     // offline: try again next time
-        }
+        val found = try { find(m) } catch (e: Exception) { return@withLock null }      // offline: try again next time
         mem[m.id] = found
-        prefs.edit().putString(m.id, JSONObject().put("t", System.currentTimeMillis()).put("url", found?.url ?: "")
+        prefs.edit().putString("v$VERSION:" + m.id, JSONObject().put("t", System.currentTimeMillis()).put("url", found?.url ?: "")
             .put("page", found?.page ?: "").put("credit", found?.credit ?: "").toString()).apply()
         found
+    }
+
+    /** The model itself, however it's been written up; failing that, a bus by the same maker. */
+    private suspend fun find(m: BusModel): Photo? {
+        val bare = m.short.removeSuffix(" MAX").trim()                 // "eT12 MAX" -> "eT12"
+        val exact = listOf("${m.name} Auckland", "${m.short} Auckland", "$bare Auckland", "${m.maker} $bare",
+                           m.name, "$bare bus")
+        for (q in exact.distinct()) search(q)?.let { return it }
+        for (c in listOf(m.name, "${m.maker} $bare", "$bare").distinct()) category("Category:$c")?.let { return it }
+        // no photo of the model itself: one of the same maker's buses, and say so
+        for (q in listOf("${m.maker} bus Auckland", "${m.maker} bus")) {
+            search(q)?.let { return Photo(it.url, it.page, it.credit.replace("Photo:", "A ${m.maker} bus. Photo:")) }
+        }
+        return null
+    }
+
+    /** Files in a Commons category. */
+    private suspend fun category(title: String): Photo? {
+        val url = "https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=categorymembers&gcmtype=file&gcmlimit=10" +
+            "&gcmtitle=" + URLEncoder.encode(title, "UTF-8") + "&prop=imageinfo&iiprop=url%7Cextmetadata%7Cmime&iiurlwidth=800"
+        return pick(httpJson(url) as? JSONObject ?: throw java.io.IOException("Commons didn't answer"))
     }
 
     private suspend fun search(q: String): Photo? {
         val url = "https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrlimit=8" +
             "&gsrsearch=" + URLEncoder.encode("$q filetype:bitmap", "UTF-8") +
             "&prop=imageinfo&iiprop=url%7Cextmetadata%7Cmime&iiurlwidth=800"
-        val j = httpJson(url) as? JSONObject ?: throw java.io.IOException("Commons didn't answer")
+        return pick(httpJson(url) as? JSONObject ?: throw java.io.IOException("Commons didn't answer"))
+    }
+
+    private fun pick(j: JSONObject): Photo? {
         val pages = j.optJSONObject("query")?.optJSONObject("pages") ?: return null
         val best = pages.keys().asSequence().mapNotNull { pages.optJSONObject(it) }
             .filter { p -> p.optJSONArray("imageinfo")?.optJSONObject(0)?.optString("mime")?.let { it == "image/jpeg" || it == "image/png" } == true }
