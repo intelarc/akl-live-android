@@ -82,7 +82,7 @@ fun AklApp(vm: AppViewModel, deepLink: StateFlow<String?>, consumeLink: () -> Un
             when (uri.host) {
                 "stop" -> uri.lastPathSegment?.let { nav.navigate("stop/${Uri.encode(it)}") }
                 "plan", "live", "trains", "home", "more" -> nav.tab(uri.host!!)
-                "search", "alerts", "fleet", "dex", "settings", "routes" -> nav.navigate(uri.host!!)
+                "search", "alerts", "fleet", "dex", "settings", "routes", "trip" -> nav.navigate(uri.host!!)
                 "route" -> uri.lastPathSegment?.let { nav.navigate("route/${Uri.encode(it)}") }
             }
         }
@@ -125,7 +125,7 @@ fun AklApp(vm: AppViewModel, deepLink: StateFlow<String?>, consumeLink: () -> Un
             ) { pad ->
                 // lists stay clear of the navigation bar; maps and the journey sheet run under it
                 val tab = TABS.any { it.route == route }
-                val underBar = route == "journey/{i}" || route == "busmap"
+                val underBar = route == "journey/{i}" || route == "busmap" || route == "trip"
                 Box(Modifier.fillMaxSize().padding(pad).let { if (tab || underBar) it else it.navigationBarsPadding() }) {
                     Screens(vm, nav)
                 }
@@ -176,6 +176,7 @@ private fun Screens(vm: AppViewModel, nav: NavHostController) {
                    enterTransition = { slideInFwd() }, popExitTransition = { slideOutBack() }) {
             JourneyScreen(vm, it.arguments?.getInt("i") ?: 0)
         }
+        composable("trip", enterTransition = { slideInFwd() }, popExitTransition = { slideOutBack() }) { TripRoute(vm) }
         composable("routes", enterTransition = { slideInFwd() }, popExitTransition = { slideOutBack() }) { RoutesScreen(vm) }
         composable("busmap", enterTransition = { slideInFwd() }, popExitTransition = { slideOutBack() }) { BusMapRoute(vm) }
         composable("alerts", enterTransition = { slideInFwd() }, popExitTransition = { slideOutBack() }) { AlertsScreen(vm) }

@@ -11,6 +11,8 @@
     <!-- tracking a bus: a live notification that keeps counting down -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- following you along a journey: on the bus, the stop before yours -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <application
         android:label="@string/app_name"
@@ -44,6 +46,11 @@
             android:name=".system.TrackService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name=".system.TripService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
         <service
             android:name=".system.NextBusTile"
