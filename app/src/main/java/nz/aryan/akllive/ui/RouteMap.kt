@@ -129,7 +129,7 @@ private fun DirectionLegend(boards: List<StopBoard>, color: Color = MaterialThem
         boards.filter { RouteData.ROUTES.containsKey(it.code) }.forEachIndexed { i, b ->
             Box(Modifier.size(10.dp).background(DirColors[i % 2], CircleShape))
             Spacer(Modifier.width(5.dp))
-            Text("to ${b.headsign.ifEmpty { "…" }}", style = MaterialTheme.typography.labelMedium, color = color)
+            Text(b.towards, style = MaterialTheme.typography.labelMedium, color = color)
             Spacer(Modifier.width(14.dp))
         }
     }

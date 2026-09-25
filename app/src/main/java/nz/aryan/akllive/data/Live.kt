@@ -170,20 +170,23 @@ object Places {
         return Place(name, where.joinToString(", ").ifEmpty { "Auckland" }, lat, lon, PlaceKind.Place)
     }
 
-    /** Addresses and places matching the text, Auckland first. */
+    /** Addresses and places matching the text, nearest [lat], [lon] first (the city if unknown). */
     @Suppress("UNCHECKED_CAST")
-    suspend fun search(q: String): List<Place> {
+    suspend fun search(q: String, lat: Double? = null, lon: Double? = null): List<Place> {
         val t = q.trim()
         if (t.length < 3) return emptyList()
-        (cache["s:$t"] as? List<Place>)?.let { return it }
-        val j = httpJson("https://photon.komoot.io/api/?q=${URLEncoder.encode(t, "UTF-8")}&lat=-36.87&lon=174.76" +
-                         "&limit=8&bbox=$BBOX&lang=en") as? JSONObject ?: return emptyList()
+        val la = lat ?: -36.87
+        val lo = lon ?: 174.76
+        val key = "s:$t@%.2f,%.2f".format(la, lo)
+        (cache[key] as? List<Place>)?.let { return it }
+        val j = httpJson("https://photon.komoot.io/api/?q=${URLEncoder.encode(t, "UTF-8")}&lat=$la&lon=$lo" +
+                         "&location_bias_scale=0.5&limit=8&bbox=$BBOX&lang=en") as? JSONObject ?: return emptyList()
         val out = ArrayList<Place>()
         j.arr("features").objects { f ->
             val c = f.obj("geometry")?.optJSONArray("coordinates") ?: return@objects
             out += label(f, c.optDouble(1), c.optDouble(0))
         }
-        cache["s:$t"] = out
+        cache[key] = out
         return out
     }
 
