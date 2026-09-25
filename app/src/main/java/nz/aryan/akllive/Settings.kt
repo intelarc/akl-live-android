@@ -100,6 +100,8 @@ data class Settings(
     val planOpts: PlanOpts = PlanOpts(),
     /** only download the 29 MB timetable on Wi-Fi */
     val wifiOnly: Boolean = false,
+    /** MeowPCS mode: found by tapping the credits */
+    val meow: Boolean = false,
 ) {
     fun isFav(id: String) = favs.any { it.id == id || it.code == id }
 }
@@ -143,6 +145,7 @@ class Prefs(ctx: Context) {
                          it.optBoolean("train", true), it.optBoolean("ferry", true), it.optInt("maxRides", 4))
             } ?: PlanOpts(),
             wifiOnly = p.getBoolean("wifiOnly", false),
+            meow = p.getBoolean("meow", false),
         )
     }
 
@@ -179,6 +182,7 @@ class Prefs(ctx: Context) {
             .putString("planOpts", JSONObject().put("maxWalk", o.maxWalk).put("walkSpeed", o.walkSpeed)
                 .put("bus", o.bus).put("train", o.train).put("ferry", o.ferry).put("maxRides", o.maxRides).toString())
             .putBoolean("wifiOnly", s.wifiOnly)
+            .putBoolean("meow", s.meow)
             .apply()
     }
 

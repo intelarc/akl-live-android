@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     private val link = MutableStateFlow<String?>(null)
     private var sensors: SensorManager? = null
     private var lastShake = 0L
+    private var shakes = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -80,10 +81,15 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         val g = sqrt(e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2]) / SensorManager.GRAVITY_EARTH
         val now = SystemClock.elapsedRealtime()
         if (g > 2.7f && now - lastShake > 2500) {
+            shakes = if (now - lastShake < 12_000) shakes + 1 else 1
             lastShake = now
             if (vm.settings.value.haptics) window.decorView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             vm.pullRefresh()
-            vm.toast.tryEmit(if (vm.settings.value.kiwi) "Shaken, not stirred: refreshing" else "Refreshing")
+            vm.toast.tryEmit(when {
+                shakes >= 4 -> "Alright, alright! I'm refreshing 😵‍💫"
+                vm.settings.value.kiwi -> "Shaken, not stirred: refreshing"
+                else -> "Refreshing"
+            })
         }
     }
 

@@ -137,7 +137,7 @@ fun LiveBadge(updated: Long, now: Long) {
  * Tap the scene and the bus honks.
  */
 @Composable
-fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int, weather: Weather?,
+fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int, weather: Weather?, meow: Boolean = false,
             onTrack: (BusDeparture) -> Unit = {}, onOpen: () -> Unit = {}) {
     val next = b.departures.firstOrNull()
     val city = b.headsign.contains("Britomart", true) || b.headsign.contains("City", true)
@@ -196,7 +196,12 @@ fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int, weather: 
                                                          enter = androidx.compose.animation.scaleIn() + fadeIn(),
                                                          exit = fadeOut()) {
                 Box(Modifier.background(Color.White, RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 6.dp)) {
-                    Text(if (next == null) "No bus yet! 🚏" else if (next.vehicle?.busModel()?.electric == true) "Bzzt ⚡ beep beep!" else "Beep beep! 📯",
+                    Text(when {
+                             meow -> if (next?.vehicle?.busModel()?.electric == true) "Purrrr ⚡🐱" else "Meow meow! 🐱"
+                             next == null -> "No bus yet! 🚏"
+                             next.vehicle?.busModel()?.electric == true -> "Bzzt ⚡ beep beep!"
+                             else -> "Beep beep! 📯"
+                         },
                          color = Pal.Navy, fontWeight = FontWeight.Black)
                 }
             }

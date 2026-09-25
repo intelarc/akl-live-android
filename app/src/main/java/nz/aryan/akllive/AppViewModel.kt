@@ -205,7 +205,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refresh() { kick.tryEmit(Unit) }
 
+    private val pulls = ArrayDeque<Long>()
+
     fun pullRefresh() {
+        // pull, pull, pull...
+        val t = SystemClock.elapsedRealtime()
+        pulls.addLast(t)
+        while (pulls.isNotEmpty() && t - pulls.first() > 30_000) pulls.removeFirst()
+        if (pulls.size == 6) toast.tryEmit(if (_settings.value.kiwi) "Easy tiger, e hoa. The buses won't come any faster 🐯"
+                                           else "Easy tiger. The buses won't come any faster 🐯")
         _pulling.value = true
         refresh()
         liveKick.tryEmit(Unit)

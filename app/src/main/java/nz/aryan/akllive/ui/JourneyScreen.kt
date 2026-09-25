@@ -98,6 +98,16 @@ private fun describe(it: Itinerary, from: Place?, to: Place?, live: Map<String, 
     append("Planned with AKL Live")
 }
 
+/** Little asides about a trip. */
+private fun tripNotes(it: Itinerary): List<String> = buildList {
+    if (it.rides.any { r -> r.mode == Mode.Ferry }) add("⛴️ Harbour views included")
+    if (it.rides.any { r -> r.mode == Mode.Train && r.stops.any { s -> s.stop.name.contains("Te Waihorotiu") || s.stop.name.contains("Karanga-a-Hape") } })
+        add("🚇 Through the City Rail Link")
+    if (it.walk >= 1500) add("👟 Good for the step count")
+    if (it.end - it.start >= 2 * 3600) add("🥪 Pack a snack")
+    if (it.transfers >= 3) add("🔁 Change champion")
+}
+
 private fun RideLeg.board() = StopBoard(from.stop.code.ifEmpty { from.stop.id }, from.stop.name, from.stop.lat, from.stop.lon, route, headsign)
 private fun RideLeg.departure(l: TripLive?) = BusDeparture(tripId, route, headsign, from.seq, from.dep, l?.delay ?: 0,
                                                            l?.delay != null, l?.cancelled == true, false, l?.seq, l?.vehicle)
@@ -229,6 +239,12 @@ private fun Steps(it: Itinerary, from: Place?, to: Place?, live: Map<String, Tri
                     }
                     else -> Text("This one's been and gone", style = MaterialTheme.typography.titleMedium,
                                  color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                val notes = tripNotes(it)
+                if (notes.isNotEmpty()) {
+                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        notes.forEach { n -> Tag(n, MaterialTheme.colorScheme.tertiary) }
+                    }
                 }
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     it.rides.firstOrNull()?.let { r ->
