@@ -67,6 +67,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.rounded.HourglassTop
+import androidx.compose.material.icons.rounded.Navigation
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.TextButton
+import nz.aryan.akllive.system.Phase
+import nz.aryan.akllive.system.TripProgress
+import nz.aryan.akllive.system.TripTracker
 import nz.aryan.akllive.AppViewModel
 import nz.aryan.akllive.Place
 import nz.aryan.akllive.data.BusDeparture
@@ -113,14 +126,10 @@ private fun RideLeg.departure(l: TripLive?) = BusDeparture(tripId, route, headsi
                                                            l?.delay != null, l?.cancelled == true, false, l?.seq, l?.vehicle)
 
 /** One way there, step by step over a map of it, with every ride live. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JourneyScreen(vm: AppViewModel, index: Int) {
     val st by vm.plan.collectAsStateWithLifecycle()
-    val basemap by vm.basemap.collectAsStateWithLifecycle()
-    val linzKey by vm.linzKey.collectAsStateWithLifecycle()
     val it = st.result?.itineraries?.getOrNull(index)
-    val back = LocalBack.current
     if (it == null) {
         Column(Modifier.fillMaxSize()) {
             BackBar("Journey")
@@ -128,12 +137,51 @@ fun JourneyScreen(vm: AppViewModel, index: Int) {
         }
         return
     }
+    JourneyView(vm, it, st.from, st.to, st.live)
+}
+
+/** The journey you're on right now (from its notification, or Home). */
+@Composable
+fun TripRoute(vm: AppViewModel) {
+    val trip by TripTracker.state.collectAsStateWithLifecycle()
+    val st by vm.plan.collectAsStateWithLifecycle()
+    val it = trip.itinerary
+    if (it == null) {
+        Column(Modifier.fillMaxSize()) {
+            BackBar("Your trip")
+            EmptyState(Icons.Rounded.Warning, "No trip on the go", "Plan a journey, then tap Start trip and I'll follow you along it.")
+        }
+        return
+    }
+    JourneyView(vm, it, trip.from, trip.to, st.live + trip.live)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun JourneyView(vm: AppViewModel, it: Itinerary, from: Place?, to: Place?, live: Map<String, TripLive>) {
+    val basemap by vm.basemap.collectAsStateWithLifecycle()
+    val linzKey by vm.linzKey.collectAsStateWithLifecycle()
+    val back = LocalBack.current
     val frameT = rememberFrameTime()
     val now by rememberNow()
     val ctx = LocalContext.current
     val nav = LocalNav.current
     val notify = rememberNotifyPermission()
-    val live = st.live
+    // following you along it
+    val trip by TripTracker.state.collectAsStateWithLifecycle()
+    val tracking = trip.itinerary === it
+    val askLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { r ->
+        if (r[Manifest.permission.ACCESS_FINE_LOCATION] == true || r[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
+            TripTracker.start(ctx, it, from, to)
+            vm.toast.tryEmit("Following your trip: it's in your notifications")
+        } else vm.toast.tryEmit("Trip tracking needs your location")
+    }
+    val startTrip: () -> Unit = {
+        askLocation.launch(buildList {
+            add(Manifest.permission.ACCESS_FINE_LOCATION); add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+        }.toTypedArray())
+    }
     // every ride's delay and position, every 20 seconds
     LaunchedEffect(it) {
         while (true) {
@@ -161,13 +209,19 @@ fun JourneyScreen(vm: AppViewModel, index: Int) {
             add(MapStop(r.from.stop.lat, r.from.stop.lon, c, big = true, label = r.from.stop.name, id = r.from.stop.id))
             add(MapStop(r.to.stop.lat, r.to.stop.lon, c, big = true, label = r.to.stop.name, id = r.to.stop.id))
         }
-        (it.legs.firstOrNull() as? WalkLeg)?.let { w -> add(MapStop(w.fromLat, w.fromLon, MaterialTheme.colorScheme.primary, big = true, label = st.from?.name)) }
-        (it.legs.lastOrNull() as? WalkLeg)?.let { w -> add(MapStop(w.toLat, w.toLon, Pal.Late, big = true, label = st.to?.name)) }
+        (it.legs.firstOrNull() as? WalkLeg)?.let { w -> add(MapStop(w.fromLat, w.fromLon, MaterialTheme.colorScheme.primary, big = true, label = from?.name)) }
+        (it.legs.lastOrNull() as? WalkLeg)?.let { w -> add(MapStop(w.toLat, w.toLon, Pal.Late, big = true, label = to?.name)) }
     }
     val markers = it.rides.mapNotNull { r ->
         live[r.tripId]?.vehicle?.let { v ->
             MapMarker(r.tripId, v.lat, v.lon, v.bearing, routeColor(r.route, r.mode), train = r.mode == Mode.Train, tag = r.route)
         }
+    } + listOfNotNull(if (tracking && trip.lat != null) MapMarker("me", trip.lat!!, trip.lon!!, null, Color(0xFF1A73E8), train = false, tag = "You")
+                      else null)
+    // the first fix of a trip brings the map to you
+    var centred by remember(tracking) { mutableStateOf(false) }
+    LaunchedEffect(tracking, trip.lat != null) {
+        if (tracking && !centred && trip.lat != null) { centred = true; focus = MapFocus(trip.lat!!, trip.lon!!, 15.5) }
     }
     val fit = remember(it) {
         val pts = it.legs.flatMap { l -> if (l is RideLeg) l.shape else listOf((l as WalkLeg).fromLat to l.fromLon, l.toLat to l.toLon) }
@@ -179,21 +233,23 @@ fun JourneyScreen(vm: AppViewModel, index: Int) {
         scaffoldState = sheet,
         sheetPeekHeight = 360.dp,
         sheetContent = {
-            Steps(it, st.from, st.to, live, walks, now,
+            Steps(it, from, to, live, walks, now, if (tracking) trip else null,
+                  onStart = startTrip, onEnd = { TripTracker.stop(ctx) },
+                  onLocate = { trip.lat?.let { la -> focus = MapFocus(la, trip.lon!!, 16.0) } },
                   onFocus = { lat, lon -> focus = MapFocus(lat, lon, 16.0) },
                   onStop = { id -> nav.go("stop/${Uri.encode(id)}") },
                   onTrack = { r -> notify { vm.track(r.board(), r.departure(live[r.tripId])) } },
                   onShare = {
                       val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-                          .putExtra(Intent.EXTRA_TEXT, describe(it, st.from, st.to, live))
+                          .putExtra(Intent.EXTRA_TEXT, describe(it, from, to, live))
                       try { ctx.startActivity(Intent.createChooser(send, "Share the journey")) } catch (_: Exception) { }
                   },
                   onCalendar = {
                       val i = Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI)
                           .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, leaveAt(it, live) * 1000)
                           .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, it.end * 1000)
-                          .putExtra(CalendarContract.Events.TITLE, "Trip to ${st.to?.name ?: "…"}")
-                          .putExtra(CalendarContract.Events.DESCRIPTION, describe(it, st.from, st.to, live))
+                          .putExtra(CalendarContract.Events.TITLE, "Trip to ${to?.name ?: "…"}")
+                          .putExtra(CalendarContract.Events.DESCRIPTION, describe(it, from, to, live))
                       try { ctx.startActivity(i) } catch (_: Exception) { vm.toast.tryEmit("No calendar app to add it to") }
                   })
         },
@@ -212,6 +268,7 @@ fun JourneyScreen(vm: AppViewModel, index: Int) {
 
 @Composable
 private fun Steps(it: Itinerary, from: Place?, to: Place?, live: Map<String, TripLive>, walks: Map<Int, WalkRoute>, now: Long,
+                  trip: TripProgress?, onStart: () -> Unit, onEnd: () -> Unit, onLocate: () -> Unit,
                   onFocus: (Double, Double) -> Unit, onStop: (String) -> Unit, onTrack: (RideLeg) -> Unit,
                   onShare: () -> Unit, onCalendar: () -> Unit) {
     val leave = leaveAt(it, live)
@@ -239,6 +296,13 @@ private fun Steps(it: Itinerary, from: Place?, to: Place?, live: Map<String, Tri
                     }
                     else -> Text("This one's been and gone", style = MaterialTheme.typography.titleMedium,
                                  color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(10.dp))
+                if (trip != null) TripStatus(trip, onEnd, onLocate)
+                else if (now < end) Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.Navigation, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Start trip")
                 }
                 val notes = tripNotes(it)
                 if (notes.isNotEmpty()) {
@@ -398,5 +462,41 @@ private fun RideStep(r: RideLeg, l: TripLive?, now: Long, onFocus: (Double, Doub
         }
         StopLine(r.to.stop.name, r.to.stop.platform.takeIf { it.isNotEmpty() }?.let { "Platform $it" } ?: "Get off here",
                  c, first = false, last = true, big = true, trailing = Nz.time(arr)) { onStop(r.to.stop.id) }
+    }
+}
+
+/** Where you're up to, live: walking, waiting, on board with the stops left, or there. */
+@Composable
+private fun TripStatus(t: TripProgress, onEnd: () -> Unit, onLocate: () -> Unit) {
+    val (icon, tint) = when (t.phase) {
+        Phase.Walking -> Icons.AutoMirrored.Rounded.DirectionsWalk to MaterialTheme.colorScheme.primary
+        Phase.Waiting -> Icons.Rounded.HourglassTop to Pal.Warn
+        Phase.OnBoard -> modeIcon(t.ride?.mode ?: Mode.Bus) to Pal.Live
+        Phase.Arrived -> Icons.Rounded.Flag to Pal.Live
+    }
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(38.dp).background(MaterialTheme.colorScheme.surface, CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(t.headline, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
+                         color = MaterialTheme.colorScheme.onPrimaryContainer, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(t.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+            }
+            if (t.phase == Phase.OnBoard && t.stopsTotal > 0) {
+                LinearProgressIndicator(progress = { t.stopsDone / t.stopsTotal.toFloat() },
+                                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp))
+            }
+            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(if (t.lat == null) "Waiting for GPS…" else "GPS ±${t.accuracy.toInt()} m", style = MaterialTheme.typography.labelSmall,
+                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f), modifier = Modifier.weight(1f))
+                TextButton(onClick = onLocate, enabled = t.lat != null) { Text("Where am I") }
+                TextButton(onClick = onEnd) { Text("End trip") }
+            }
+        }
     }
 }

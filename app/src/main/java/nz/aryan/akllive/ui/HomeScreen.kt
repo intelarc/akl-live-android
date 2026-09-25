@@ -190,6 +190,7 @@ fun HomeScreen(vm: AppViewModel) {
     val nav = LocalNav.current
     val mine = remember(alerts, s) { vm.myAlerts(alerts, s) }
     val notify = rememberNotifyPermission()
+    val trip by nz.aryan.akllive.system.TripTracker.state.collectAsStateWithLifecycle()
 
     PullToRefreshBox(pulling, onRefresh = vm::pullRefresh, modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -200,6 +201,22 @@ fun HomeScreen(vm: AppViewModel) {
             item { HomeHeader(vm, s, boards, weather, now) }
             item { SearchPill { nav.go("search") } }
             item { QuickActions(vm, s) }
+            if (trip.active) item {
+                // a journey on the go: where you're up to, one tap from the full view
+                Card(onClick = { nav.go("trip") }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.MyLocation, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(trip.headline, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(trip.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                 maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                        Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                }
+            }
             if (s.apiKey.isBlank()) item { NoKeyCard { nav.go("settings") } }
             if (mine.isNotEmpty()) item { AlertBanner(mine.size, mine.first().header) { nav.go("alerts") } }
             if (tt.loading) item { TimetableCard(tt.text, tt.pct) }
