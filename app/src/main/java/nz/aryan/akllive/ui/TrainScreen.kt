@@ -49,6 +49,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material.icons.rounded.ZoomOutMap
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import nz.aryan.akllive.gtfs.Pt
+import nz.aryan.akllive.gtfs.Rail
+import nz.aryan.akllive.gtfs.RailDrawing
+import nz.aryan.akllive.gtfs.RailGeo
+import nz.aryan.akllive.gtfs.RailSeg
+import nz.aryan.akllive.gtfs.RailStation
+import nz.aryan.akllive.gtfs.Timetable
+import nz.aryan.akllive.gtfs.metres
+import nz.aryan.akllive.gtfs.railTrack
+import kotlin.math.atan2
+import kotlin.math.cos
 import nz.aryan.akllive.AppViewModel
 import nz.aryan.akllive.data.MapData
 import nz.aryan.akllive.data.Nz
@@ -58,22 +75,73 @@ import nz.aryan.akllive.data.TrainState
 import nz.aryan.akllive.data.TripDetail
 import nz.aryan.akllive.data.occupancyText
 
+/** The network's stations and segments, plus Te Huia's own stops, for the rail layout. */
+object TrainNet {
+    val stations: List<RailStation> =
+        MapData.STATIONS.map { RailStation(it.name, it.lat, it.lon, it.lines, it.priority) } + Rail.HUIA_STOPS
+    val segs: List<RailSeg> = MapData.SEGS.map { RailSeg(it.line, it.from, it.to) }
+    /** straight lines between stations, until the timetable's in */
+    val straight: RailGeo by lazy { Rail.build(stations, segs, null) }
+    @Volatile private var real: Pair<String, RailGeo>? = null
+
+    /** The lines along their real tracks, cut from today's timetable (once a day). */
+    fun geo(): RailGeo {
+        val net = Timetable.today ?: return straight
+        real?.takeIf { it.first == net.date }?.let { return it.second }
+        val g = try {
+            Rail.build(stations, segs, net.railTrack(Rail.asks(stations, segs, MapData.LINE_IDS.toList())))
+        } catch (e: Exception) {
+            straight
+        }
+        real = net.date to g
+        return g
+    }
+
+    /** Every AT station on the lines showing, to frame the network. */
+    fun fit(filter: Set<Int>): List<Pair<Double, Double>> =
+        MapData.STATIONS.filter { st -> filter.any { st.lines and (1 shl it) != 0 } }.map { it.lat to it.lon }
+}
+
+/** Te Huia's colour: AT's feed says black, which needs lifting in the dark. */
+fun huiaColor(dark: Boolean) = if (dark) Color(0xFFB9C2CF) else Color(0xFF2B3140)
+
+private val KX = cos(36.9 * Math.PI / 180)
+private fun bearing(a: Pt, b: Pt) = ((Math.toDegrees(atan2((b.x - a.x) * KX, b.y - a.y)) + 360) % 360).toFloat()
+
+/**
+ * Trains: Auckland's rail network drawn along the real tracks in AT's line
+ * colours (lines side by side where they share rails, Te Huia on to Hamilton),
+ * with every train live on its own line where its GPS puts it. Over a quiet
+ * diagram map, satellite photos or a street map; tap a train or a station.
+ */
 @Composable
 fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
     val state by vm.trains.collectAsStateWithLifecycle()
     val trip by vm.trip.collectAsStateWithLifecycle()
     val station by vm.station.collectAsStateWithLifecycle()
+    val s by vm.settings.collectAsStateWithLifecycle()
+    val tt by vm.timetable.collectAsStateWithLifecycle()
+    val linzKey by vm.linzKey.collectAsStateWithLifecycle()
     val now by rememberNow()
     val frameT = rememberFrameTime()
+    val dark = LocalDark.current
     var selTrain by remember { mutableStateOf<String?>(null) }
     var selStation by remember { mutableStateOf<Int?>(null) }
-    var filter by remember { mutableStateOf(setOf(0, 1, 2)) }
-    val zoom = remember { mutableFloatStateOf(1f) }
-    val pan = remember { mutableStateOf(Offset.Zero) }
-    // the network diagram, or every train at its real GPS position over a real map
-    var realMap by rememberSaveable { mutableStateOf(false) }
-    val basemap by vm.basemap.collectAsStateWithLifecycle()
-    val linzKey by vm.linzKey.collectAsStateWithLifecycle()
+    var filter by rememberSaveable { mutableStateOf(listOf(0, 1, 2)) }
+    val shown = filter.toSet()
+    val mode = s.trainView
+
+    // straight lines between stations until the timetable has loaded, then the real track
+    val geo by produceState(TrainNet.straight, tt.ready) {
+        if (tt.ready) value = withContext(Dispatchers.Default) { TrainNet.geo() }
+    }
+    val drawing by produceState<RailDrawing?>(null, geo, filter) {
+        value = withContext(Dispatchers.Default) { Rail.layout(TrainNet.stations, geo, shown) }
+    }
+    var fitKey by remember { mutableIntStateOf(0) }
+    // framed when the screen opens and when "whole network" is tapped, not on every filter change
+    val fit = remember(fitKey) { TrainNet.fit(shown) }
+    val headings = remember { HashMap<String, Pair<Pt, Float?>>() }
 
     // keep a selected station's departures fresh
     LaunchedEffect(selStation, state.updated) { selStation?.let { vm.selectStation(it) } }
@@ -96,42 +164,78 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
         vm.selectStation(null)
     }
 
+    val d = drawing
+    val lines = remember(d, dark) {
+        d?.pieces?.map { p ->
+            MapLine(listOf(p.coords.map { it.y to it.x }), if (p.line == Rail.HUIA) huiaColor(dark) else Pal.line(p.line),
+                    p.width.toFloat(), p.offset.toFloat(), z = true)
+        } ?: emptyList()
+    }
+    val stopsAndLinks = remember(d, geo, selStation, dark) {
+        val stops = ArrayList<MapStop>()
+        val links = ArrayList<MapLine>()
+        if (d != null) TrainNet.stations.forEachIndexed { i, st ->
+            val on = (0..2).filter { it in shown && st.lines and (1 shl it) != 0 }
+            if (!st.extra && on.isEmpty()) return@forEachIndexed
+            val pts = d.markers[i].ifEmpty { listOf(Pt(st.lon, st.lat)) }
+            val r = when {
+                st.extra -> 1.1f
+                geo.junction[i] -> 1.6f
+                on.size > 1 -> 1.35f
+                geo.terminus[i] -> 1.2f
+                else -> 1f
+            }
+            val color = when {
+                pts.size > 1 || (!st.extra && (on.size > 1 || i == selStation)) -> Pal.Navy
+                st.extra -> huiaColor(dark)
+                else -> Pal.line(on[0])
+            }
+            if (pts.size > 1) links += MapLine(listOf(pts.map { it.y to it.x }), color)
+            pts.forEachIndexed { k, p ->
+                stops += MapStop(p.y, p.x, color, big = i == selStation, label = if (k == 0) st.name else null,
+                                 id = if (st.extra) null else i.toString(), r = r, rank = st.priority)
+            }
+        }
+        stops to links
+    }
+    // every train where its GPS says, put on its own line's track, pointing the way it's going
+    val markers = remember(state.updated, d, filter, mode) {
+        val seen = HashSet<String>()
+        state.trains.filter { it.line in shown }.map { t ->
+            val v = t.vehicle
+            val at = d?.snap(t.line, v.lon, v.lat) ?: Pt(v.lon, v.lat)
+            seen += v.id
+            var b = v.bearing?.takeIf { it != 0f }            // 0 comes through when a train doesn't know
+            val h = headings[v.id]
+            if (b == null && h != null) b = if (metres(h.first, at) > 25) bearing(h.first, at) else h.second
+            headings[v.id] = if (h == null || metres(h.first, at) > 25) at to b else h.first to b
+            val late = t.delay ?: 0
+            MapMarker(v.id, at.y, at.x, b, Pal.line(t.line), train = true,
+                      tag = if (mode == Basemap.Diagram) null else MapData.LINE_IDS[t.line],
+                      alert = if (late >= 300) Pal.Late else if (late >= 120) Pal.Warn else null)
+        }.also { headings.keys.retainAll(seen) }
+    }
+
     val map: @Composable (Modifier) -> Unit = { m ->
         Box(m.clip(RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp))) {
-            if (realMap) {
-                val real = remember(filter) { realRail(filter) }
-                val markers = state.trains.filter { it.line in filter }.map { t ->
-                    val d = t.delay ?: 0
-                    MapMarker(t.vehicle.id, t.vehicle.lat, t.vehicle.lon, t.vehicle.bearing, Pal.line(t.line),
-                              train = true, alert = if (d >= 300) Pal.Late else if (d >= 120) Pal.Warn else null)
-                }
-                LiveMap(basemap, linzKey, real.lines, real.stops, markers, real.fit, frameT, Modifier.fillMaxSize(),
-                        selected = selTrain, topInset = 70f,
-                        onMarker = { id -> state.trains.firstOrNull { it.vehicle.id == id }?.let(pickTrain) },
-                        onStop = { id -> pickStation(id.toInt()) }, onBackground = clear)
-            } else {
-                TrainMap(state, filter, selTrain, selStation, zoom, pan, frameT,
-                         pickTrain, pickStation, clear, Modifier.fillMaxSize())
+            LiveMap(mode, linzKey, lines, stopsAndLinks.first, markers, fit, frameT, Modifier.fillMaxSize(),
+                    selected = selTrain, topInset = 70f, fitKey = fitKey, links = stopsAndLinks.second,
+                    onMarker = { id -> state.trains.firstOrNull { it.vehicle.id == id }?.let(pickTrain) },
+                    onStop = { id -> id.toIntOrNull()?.let(pickStation) }, onBackground = clear)
+            MapHeader(state, now, shown) { li ->
+                filter = (if (li in shown && shown.size > 1) shown - li else shown + li).sorted()
             }
-            MapHeader(state, now, filter) { li ->
-                filter = if (li in filter && filter.size > 1) filter - li else filter + li
-            }
-            if (!realMap) {
-                // zoom controls live in the empty bottom-left, clear of the lines and labels
-                Row(Modifier.align(Alignment.BottomStart).padding(10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    MapButton("+") { zoom.floatValue = (zoom.floatValue * 1.6f).coerceAtMost(9f) }
-                    MapButton("−") {
-                        zoom.floatValue = (zoom.floatValue / 1.6f).coerceAtLeast(1f)
-                        if (zoom.floatValue == 1f) pan.value = Offset.Zero
-                    }
-                    MapButton("Fit", 13) { zoom.floatValue = 1f; pan.value = Offset.Zero }
+            if (!tt.ready && tt.loading) {
+                Surface(Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp), shape = RoundedCornerShape(50),
+                        color = Color.Black.copy(alpha = 0.6f)) {
+                    Text("Drawing the real tracks once the timetable's in… ${tt.pct}%", color = Color.White, fontSize = 12.sp,
+                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
                 }
             }
-            TrainViewToggle(realMap, basemap, Modifier.align(Alignment.BottomEnd).padding(10.dp)) { real, b ->
-                realMap = real
-                if (b != null) vm.setBasemap(b)
+            Box(Modifier.align(Alignment.BottomStart).padding(10.dp)) {
+                FilledTonalIconButton(onClick = { fitKey++ }) { Icon(Icons.Rounded.ZoomOutMap, "Whole network") }
             }
+            TrainViewToggle(mode, Modifier.align(Alignment.BottomEnd).padding(10.dp)) { b -> vm.update { it.copy(trainView = b) } }
         }
     }
     val panel: @Composable (Modifier) -> Unit = { m ->
@@ -164,50 +268,20 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
     }
 }
 
-@Composable
-private fun MapButton(label: String, textSize: Int = 20, onClick: () -> Unit) {
-    Box(Modifier.size(38.dp).clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
-            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f), CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center) {
-        Text(label, fontSize = textSize.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-    }
-}
-
 /** Diagram / Satellite / Map, floating over the bottom-right of the map. */
 @Composable
-private fun TrainViewToggle(realMap: Boolean, basemap: Basemap, modifier: Modifier,
-                            set: (Boolean, Basemap?) -> Unit) {
+private fun TrainViewToggle(mode: Basemap, modifier: Modifier, set: (Basemap) -> Unit) {
     Row(modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.55f))
             .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(50)).padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        val opts = listOf(Triple("Diagram", false, null), Triple("Satellite", true, Basemap.Satellite),
-                          Triple("Map", true, Basemap.Streets))
-        for ((label, real, b) in opts) {
-            val on = realMap == real && (b == null || b == basemap)
+        for ((b, label) in listOf(Basemap.Diagram to "Diagram", Basemap.Satellite to "Satellite", Basemap.Streets to "Map")) {
+            val on = mode == b
             Box(Modifier.clip(RoundedCornerShape(50)).background(if (on) Color.White else Color.Transparent)
-                    .clickable { set(real, b) }.padding(horizontal = 11.dp, vertical = 6.dp)) {
+                    .clickable { set(b) }.padding(horizontal = 11.dp, vertical = 6.dp)) {
                 Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (on) Pal.Navy else Color.White)
             }
         }
     }
-}
-
-private class RealRail(val lines: List<MapLine>, val stops: List<MapStop>, val fit: List<Pair<Double, Double>>)
-
-/** The network on a real map: each line as station-to-station links, stations as tappable dots. */
-private fun realRail(filter: Set<Int>): RealRail {
-    val lines = listOf(0, 2, 1).filter { it in filter }.map { li ->
-        MapLine(MapData.SEGS.filter { it.line == li }.map { listOf(it.lat0 to it.lon0, it.lat1 to it.lon1) },
-                Pal.line(li), 3.5f, (li - 1) * 3f)
-    }
-    val stops = MapData.STATIONS.mapIndexed { i, st ->
-        val li = MapData.LINE_IDS.indices.firstOrNull { st.lines and (1 shl it) != 0 } ?: 0
-        MapStop(st.lat, st.lon, if (st.interchange) Pal.Navy else Pal.line(li), big = false,
-                label = if (st.priority == 0) st.name else null, id = i.toString())
-    }
-    return RealRail(lines, stops, MapData.STATIONS.map { it.lat to it.lon })
 }
 
 @Composable
@@ -277,8 +351,9 @@ private fun Overview(state: TrainState, now: Long) {
     }
     Spacer(Modifier.height(12.dp))
     Text("Tap a train for where it's going, its speed and its next stops. Tap a station for live " +
-         "departures from every platform. Pinch or double-tap to zoom. Switch to Satellite to see every " +
-         "train where it really is.",
+         "departures from every platform. The lines follow the real tracks, side by side where they share rails, " +
+         "with every train where its GPS puts it, pointing the way it's heading. Te Huia runs on to Hamilton. " +
+         "Satellite and Map show it all over aerial photos or a street map.",
          style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 

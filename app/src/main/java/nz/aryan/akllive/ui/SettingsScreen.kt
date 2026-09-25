@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Business
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Home
@@ -350,5 +351,30 @@ private fun About(vm: AppViewModel) {
         TextButton(onClick = {
             try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/intelarc/akl-live-android"))) } catch (_: Exception) { }
         }) { Text("Source on GitHub") }
+        Credits()
+    }
+}
+
+/** Who made it. Tap the name. */
+@Composable
+private fun Credits() {
+    var meow by rememberSaveable { mutableStateOf(false) }
+    val view = LocalView.current
+    val haptics = LocalHaptics.current
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        HorizontalDivider(Modifier.padding(bottom = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        Text("Made in Tāmaki Makaurau by", style = MaterialTheme.typography.labelMedium,
+             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(if (meow) "MeowPCS 🐾" else "AryanPCS", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black,
+             color = MaterialTheme.colorScheme.primary,
+             modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { haptics.tick(view); meow = !meow }
+                 .padding(horizontal = 12.dp, vertical = 4.dp))
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.tertiary)
+            Spacer(Modifier.width(8.dp))
+            Text("Programmed with Claude, by Anthropic", style = MaterialTheme.typography.labelLarge)
+        }
     }
 }

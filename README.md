@@ -153,25 +153,27 @@ the rest), sorted by how many are out right now.
 
 ## Trains
 
-A live map of the post-CRL network, drawn after AT's official "Ngā Tereina"
-map. It has the red City Rail Link loop (Waitematā, Te Waihorotiu,
-Karanga-a-Hape, Grafton, Newmarket, Parnell), and E-W and O-W run side by side
-out west. Harbours and volcanic cones sit behind it.
+Auckland's rail network on a real map, drawn the way the desktop app draws it,
+with every train live on it.
 
-- **Every train, live.** Markers glide between GPS fixes, show their direction
-  of travel, and carry an orange or red dot when a train is running 2 or 5+
-  minutes late.
-- **Pinch, pan and double-tap to zoom.** All 44 station names appear as you
-  zoom in, placed so they never overlap.
-- **Tap a train** for its destination, speed, delay, how full it is and its
-  carriage number. You also get its next ten stops with expected times.
-- **Tap a station** for live departures from every platform, with line,
-  destination, delay and countdown.
+- **The real tracks.** Each line follows the rails its trains run on today, cut
+  from the shapes in AT's timetable. Where lines share rails they run side by
+  side in AT's colours (E-W, S-C, O-W), easing on and off the shared track so
+  they meet and part without crossing. Stations whose platforms are on different
+  tracks get a bar joining them, as on AT's map. Straight lines stand in until
+  the timetable has loaded.
+- **Te Huia** runs from The Strand out along the eastern line and on to
+  Hamilton.
+- **Every train, live**, snapped onto its own line and pointing the way it's
+  going, with an orange or red dot when it's running 2 or 5+ minutes late.
+- **Diagram, Satellite or Map.** Diagram is a quiet map (land, water, parks and
+  suburb names) that lets the lines stand out. Station names appear as you zoom
+  in, the most important first.
+- **Tap a train** for its destination, speed, delay, how full it is, and its
+  next stops with expected times. **Tap a station** for live departures from
+  every platform.
 - **Line filters** (E-W, S-C, O-W) with live counts, and a network overview
-  showing how many trains on each line are running late.
-- **Diagram, Satellite or Map.** Switch from the schematic to every train at
-  its real GPS position over aerial photos or a street map.
-- Light and dark map, following the system theme. Landscape puts the map
+  showing how many trains on each line are running late. Landscape puts the map
   beside the panel.
 
 ## How it's built
@@ -258,4 +260,5 @@ Local builds need JDK 17, the Android SDK and Gradle 8.11:
 `gradle :app:assembleRelease`. Without the signing secrets, you get a
 debug-signed APK.
 
-Not affiliated with Auckland Transport.
+Made in Tāmaki Makaurau by AryanPCS, programmed with Claude (Anthropic). Not
+affiliated with Auckland Transport.

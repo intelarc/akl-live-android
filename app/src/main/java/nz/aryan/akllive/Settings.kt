@@ -82,6 +82,8 @@ data class Settings(
     val dynamicColor: Boolean = false,
     val pureBlack: Boolean = false,
     val basemap: Basemap = Basemap.Satellite,
+    /** the Trains map: the quiet diagram, satellite or streets */
+    val trainView: Basemap = Basemap.Diagram,
     /** how long it takes to walk to your stop, for "leave in" */
     val walkMin: Int = 4,
     /** heads-up this many minutes before a tracked bus */
@@ -120,6 +122,7 @@ class Prefs(ctx: Context) {
             dynamicColor = p.getBoolean("dynamic", false),
             pureBlack = p.getBoolean("pureBlack", false),
             basemap = if (p.getString("basemap", null) == "streets") Basemap.Streets else Basemap.Satellite,
+            trainView = enumOr(p.getString("trainView", null), d.trainView),
             walkMin = p.getInt("walkMin", d.walkMin),
             alertMin = p.getInt("alertMin", d.alertMin),
             haptics = p.getBoolean("haptics", true),
@@ -162,6 +165,7 @@ class Prefs(ctx: Context) {
             .putBoolean("dynamic", s.dynamicColor)
             .putBoolean("pureBlack", s.pureBlack)
             .putString("basemap", if (s.basemap == Basemap.Streets) "streets" else "satellite")
+            .putString("trainView", s.trainView.name)
             .putInt("walkMin", s.walkMin)
             .putInt("alertMin", s.alertMin)
             .putBoolean("haptics", s.haptics)
