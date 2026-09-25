@@ -225,18 +225,37 @@ fun PlanScreen(vm: AppViewModel) {
                         vm.setPlan({ it.copy(from = it.to, to = it.from) })
                     }) { Icon(Icons.Rounded.SwapVert, "Swap", Modifier.rotate(angle)) }
                 }
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(st.time == null, onClick = { vm.setPlan({ it.copy(time = null, arriveBy = false) }) },
-                               label = { Text("Leave now") })
-                    FilterChip(st.time != null && !st.arriveBy, onClick = {
-                        vm.setPlan({ it.copy(arriveBy = false) }, run = false); timeDialog = true
-                    }, label = { Text(if (st.time != null && !st.arriveBy) "Leave ${whenText(st.time!!)}" else "Leave at…") },
-                               leadingIcon = { Icon(Icons.Rounded.AccessTime, null, Modifier.size(18.dp)) })
-                    FilterChip(st.arriveBy, onClick = {
-                        vm.setPlan({ it.copy(arriveBy = true) }, run = false); timeDialog = true
-                    }, label = { Text(if (st.arriveBy && st.time != null) "Arrive by ${whenText(st.time!!)}" else "Arrive by…") })
+                Spacer(Modifier.height(10.dp))
+                // when: now, leaving at a time, or arriving by one
+                val whenMode = if (st.time == null) 0 else if (st.arriveBy) 2 else 1
+                Row(Modifier.padding(end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
+                        listOf("Now", "Leave at", "Arrive by").forEachIndexed { i, label ->
+                            SegmentedButton(whenMode == i, onClick = {
+                                haptics.tick(view)
+                                when (i) {
+                                    0 -> vm.setPlan({ it.copy(time = null, arriveBy = false) })
+                                    else -> { vm.setPlan({ it.copy(arriveBy = i == 2) }, run = st.time != null); if (st.time == null) timeDialog = true }
+                                }
+                            }, shape = SegmentedButtonDefaults.itemShape(i, 3), icon = {}) {
+                                Text(label, maxLines = 1, style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
+                }
+                if (st.time != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Surface(onClick = { timeDialog = true }, shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.secondaryContainer) {
+                        Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.AccessTime, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                            Spacer(Modifier.width(8.dp))
+                            Text((if (st.arriveBy) "Arrive by " else "Leave at ") + whenText(st.time!!),
+                                 style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Change", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                 }
             }
         }
@@ -393,7 +412,8 @@ private fun Suggestions(vm: AppViewModel, s: nz.aryan.akllive.Settings) {
                         Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(6.dp))
                         Text(label, style = MaterialTheme.typography.titleMedium)
-                        Text(p?.name ?: "Set it in Settings", style = MaterialTheme.typography.bodySmall, maxLines = 1,
+                        Text(p?.let { if (it.name.equals(label, true)) it.sub.ifEmpty { "Saved" } else it.name } ?: "Set it in Settings",
+                             style = MaterialTheme.typography.bodySmall, maxLines = 1,
                              overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }

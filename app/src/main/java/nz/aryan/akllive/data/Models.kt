@@ -30,7 +30,7 @@ data class FleetState(
 )
 
 /** Where a tapped bus is going and how late it's running, fetched on demand. */
-data class BusTrip(val tripId: String, val headsign: String? = null, val delay: Int? = null)
+data class BusTrip(val tripId: String, val headsign: String? = null, val delay: Int? = null, val seq: Int? = null)
 
 /** One bus due at our stop. */
 data class BusDeparture(

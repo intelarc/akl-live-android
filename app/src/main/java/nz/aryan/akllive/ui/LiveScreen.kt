@@ -59,6 +59,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.text.style.TextAlign
+import nz.aryan.akllive.data.Nz
+import nz.aryan.akllive.gtfs.Timetable
+import nz.aryan.akllive.gtfs.TripInfo
+import nz.aryan.akllive.gtfs.tripInfo
 import nz.aryan.akllive.AppViewModel
 import nz.aryan.akllive.data.BusTrip
 import nz.aryan.akllive.data.Fleet
@@ -121,10 +132,32 @@ fun LiveScreen(vm: AppViewModel, modifier: Modifier) {
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
     val focusManager = LocalFocusManager.current
 
+    val tt by vm.timetable.collectAsStateWithLifecycle()
+    val nav = LocalNav.current
     val shown = remember(state.buses, filter, query) { state.buses.filter { it.passes(filter) && it.matches(query) } }
     val sel = state.buses.firstOrNull { it.v.id == selected }
     val crowd = remember(shown, selected) { shown.filter { it.v.id != selected }.map { it.dot() } }
-    LaunchedEffect(sel?.v?.tripId) { vm.selectBus(sel?.v?.tripId) }
+    // the tapped bus's trip, fresh with every update of the fleet
+    LaunchedEffect(sel?.v?.tripId, state.updated) { vm.selectBus(sel?.v?.tripId, refresh = true) }
+    // its whole route and the stops still to come, from the timetable
+    val info = remember(sel?.v?.tripId, tt.ready) { sel?.v?.tripId?.let { Timetable.today?.tripInfo(it) } }
+    val liveTrip = trip?.takeIf { it.tripId == sel?.v?.tripId }
+    val ahead = remember(info, liveTrip, now / 30) { info?.let { upcoming(it, liveTrip) } ?: emptyList() }
+    val routeColor = sel?.let { operatorColor(it.info.code) } ?: Pal.AtBlue
+    val routeLines = remember(info, routeColor) { info?.let { listOf(MapLine(listOf(it.shape), routeColor, 5f)) } ?: emptyList() }
+    val routeStops = remember(ahead, routeColor) {
+        ahead.mapIndexed { i, a ->
+            val last = i == ahead.lastIndex
+            MapStop(a.stop.lat, a.stop.lon, routeColor, big = last, label = if (last) a.stop.name else null, id = a.stop.id)
+        }
+    }
+    var follow by remember { mutableStateOf(false) }
+    var focus by remember { mutableStateOf<MapFocus?>(null) }
+    LaunchedEffect(selected) { follow = false }
+    LaunchedEffect(follow, sel?.v?.lat, sel?.v?.lon) {
+        val b = sel ?: return@LaunchedEffect
+        if (follow) focus = MapFocus(b.v.lat, b.v.lon, 15.5)
+    }
 
     // a search frames what it found (once, not on every refresh); clearing it goes back to the region
     var fit by remember { mutableStateOf(AKL_BOUNDS) }
@@ -139,10 +172,11 @@ fun LiveScreen(vm: AppViewModel, modifier: Modifier) {
     }
 
     Box(modifier.fillMaxSize()) {
-        LiveMap(basemap, linzKey, emptyList(), emptyList(), listOfNotNull(sel?.marker()), fit, frameT,
-                Modifier.fillMaxSize(), selected = selected, topInset = 150f, crowd = crowd,
+        LiveMap(basemap, linzKey, routeLines, routeStops, listOfNotNull(sel?.marker()), fit, frameT,
+                Modifier.fillMaxSize(), selected = selected, topInset = 150f, crowd = crowd, focus = focus,
                 onCrowd = { selected = it; focusManager.clearFocus() },
-                onMarker = { selected = it }, onBackground = { selected = null; focusManager.clearFocus() })
+                onMarker = { selected = it }, onBackground = { selected = null; focusManager.clearFocus() },
+                onStop = { id -> nav.go("stop/${android.net.Uri.encode(id)}") })
 
         // header over a soft shade
         Box(Modifier.fillMaxWidth().height(220.dp).background(
@@ -155,6 +189,7 @@ fun LiveScreen(vm: AppViewModel, modifier: Modifier) {
                     Text(when {
                         state.loading -> "Finding every bus in Auckland…"
                         state.error != null && count == 0 -> state.error ?: ""
+                        query.isNotBlank() || filter != "all" -> "%,d of %,d shown · %s".format(shown.size, count, liveAgo(state.updated, now))
                         else -> "%,d on the road · %s".format(count, liveAgo(state.updated, now))
                     }, color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp)
                 }
@@ -166,20 +201,30 @@ fun LiveScreen(vm: AppViewModel, modifier: Modifier) {
             FilterRow(state.buses, filter) { filter = if (filter == it) "all" else it }
         }
 
-        Column(Modifier.align(Alignment.BottomCenter).padding(12.dp)) {
-            AnimatedVisibility(sel != null, enter = slideInVertically { it } + fadeIn(),
-                               exit = slideOutVertically { it } + fadeOut()) {
-                sel?.let { LiveBusCard(it, trip?.takeIf { t -> t.tripId == it.v.tripId }, now) { selected = null } }
-            }
-            if (sel == null && !state.loading) {
-                val what = if (query.isNotBlank() || filter != "all") "%,d shown".format(shown.size) else "Tap a bus to see what it is"
-                Surface(shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = 0.6f)) {
-                    Text(what, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
-                }
+        AnimatedVisibility(sel != null, Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                           enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
+            sel?.let {
+                LiveBusCard(it, liveTrip, ahead, now, follow,
+                            onFollow = { follow = !follow },
+                            onZoom = { focus = MapFocus(it.v.lat, it.v.lon, 16.0) },
+                            onStop = { id -> nav.go("stop/${android.net.Uri.encode(id)}") }) { selected = null }
             }
         }
     }
+}
+
+/** A stop still to come on a bus's trip, and when it should get there. */
+class Ahead(val stop: nz.aryan.akllive.gtfs.StopInfo, val eta: Long)
+
+/** The stops a trip has still to make: after the last one realtime says it reached, or by the clock. */
+fun upcoming(info: TripInfo, live: BusTrip?): List<Ahead> {
+    val day = Timetable.dayStart(Timetable.today?.date ?: Timetable.todayYmd()) + info.offset
+    val delay = live?.delay ?: 0
+    val passed = live?.seq
+    val now = Nz.nowSec()
+    return info.stops.indices.filter { k ->
+        if (passed != null) info.seqs[k] > passed else day + info.stops[k].second + delay > now - 30
+    }.map { k -> Ahead(info.stops[k].first, day + info.stops[k].second + delay) }
 }
 
 /** "Live · 12s ago" */
@@ -245,42 +290,66 @@ private fun FilterPill(text: String, count: Int, dot: Color?, on: Boolean, click
     }
 }
 
-/** The tapped bus: its route and destination, what it is, and how it's going. */
+/** The tapped bus: its route and destination, what it is, how it's going, and its next stops. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun LiveBusCard(b: LiveBus, trip: BusTrip?, now: Long, close: () -> Unit) {
+private fun LiveBusCard(b: LiveBus, trip: BusTrip?, ahead: List<Ahead>, now: Long, follow: Boolean,
+                        onFollow: () -> Unit, onZoom: () -> Unit, onStop: (String) -> Unit, close: () -> Unit) {
     val color = operatorColor(b.info.code)
-    Surface(Modifier.fillMaxWidth().shadow(12.dp, RoundedCornerShape(22.dp)), shape = RoundedCornerShape(22.dp),
-            color = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.padding(16.dp)) {
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainer,
+            shadowElevation = 6.dp) {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.background(color, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 3.dp)) {
                     Text(b.route ?: "—", color = Color.White, fontWeight = FontWeight.Black, fontSize = 17.sp)
                 }
                 Spacer(Modifier.width(10.dp))
-                Text(when {
-                        b.route == null -> "Not in service"
-                        trip?.headsign != null -> "to ${trip.headsign}"
-                        else -> "…"
-                     }, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium,
-                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                Icon(Icons.Filled.Close, "Close", Modifier.size(22.dp).clickable(onClick = close),
-                     tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(Modifier.weight(1f)) {
+                    Text(when {
+                            b.route == null -> "Not in service"
+                            trip?.headsign != null -> "to ${trip.headsign}"
+                            else -> "…"
+                         }, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium,
+                         maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${b.info.operator ?: ""} · ${b.info.fleetNo}", style = MaterialTheme.typography.bodySmall,
+                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                }
+                IconButton(onClick = close) { Icon(Icons.Filled.Close, "Close", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             VehicleInfo(b.v, big = true)
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.height(8.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (b.route != null) {
                     val (text, c) = punctuality(trip?.delay)
                     Chip(if (trip?.delay == null) "Timing unknown" else text, if (trip?.delay == null) Pal.Ink else c)
-                    Spacer(Modifier.width(8.dp))
                 }
-                Text(listOfNotNull(
-                        b.v.speedKmh?.let { if (it < 2) "Stopped" else "${it.toInt()} km/h" },
-                        occupancyText(b.v.occupancy),
-                        "seen ${(now - b.v.timestamp).coerceAtLeast(0)}s ago",
-                     ).joinToString("  ·  "), style = MaterialTheme.typography.bodyMedium,
-                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Chip(b.v.speedKmh?.let { if (it < 2) "Stopped" else "${it.toInt()} km/h" } ?: "Speed unknown", Pal.AtBlue)
+                occupancyText(b.v.occupancy)?.let { Chip(it, Pal.Ink) }
+                Chip("seen ${ago(b.v.timestamp, now)}", Pal.Ink)
+            }
+            if (ahead.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text("Next stops", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                ahead.take(3).forEach { a ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onStop(a.stop.id) }.padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(9.dp).background(color, CircleShape))
+                        Spacer(Modifier.width(10.dp))
+                        Text(a.stop.name, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                             style = MaterialTheme.typography.bodyMedium)
+                        Text(Nz.time(a.eta), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(10.dp))
+                        Text(countdown(a.eta - now), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold,
+                             modifier = Modifier.width(56.dp), textAlign = TextAlign.End)
+                    }
+                }
+                if (ahead.size > 3) Text("…then ${ahead.size - 3} more to ${ahead.last().stop.name}", style = MaterialTheme.typography.bodySmall,
+                                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (follow) Button(onClick = onFollow) { Text("Following") } else FilledTonalButton(onClick = onFollow) { Text("Follow") }
+                OutlinedButton(onClick = onZoom) { Text("Zoom to it") }
             }
         }
     }

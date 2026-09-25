@@ -58,6 +58,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import nz.aryan.akllive.data.Images
+import nz.aryan.akllive.data.Photo
+import nz.aryan.akllive.data.Photos
 import nz.aryan.akllive.AppViewModel
 import nz.aryan.akllive.data.BusModel
 import nz.aryan.akllive.data.Fleet
@@ -158,35 +171,55 @@ private fun BusPortrait(model: BusModel?, modifier: Modifier, frameT: State<Floa
     }
 }
 
+/**
+ * A real photo of the model (from Wikimedia Commons, credited on it) over the
+ * drawn bus, which shows until the photo's in, or if there isn't one.
+ */
+@Composable
+private fun ModelPhoto(m: BusModel?, modifier: Modifier, frameT: State<Float>? = null) {
+    val ctx = LocalContext.current
+    val photo by produceState<Photo?>(null, m?.id) { value = m?.let { Photos.forModel(ctx, it) } }
+    val bmp by produceState<ImageBitmap?>(null, photo?.url) { value = photo?.url?.let { Images.load(ctx, it)?.asImageBitmap() } }
+    Box(modifier) {
+        BusPortrait(m, Modifier.fillMaxSize(), frameT)
+        androidx.compose.animation.AnimatedVisibility(bmp != null, Modifier.fillMaxSize(), enter = fadeIn(), exit = fadeOut()) {
+            bmp?.let { Image(it, m?.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        }
+        val p = photo
+        if (bmp != null && p != null) {
+            Text(p.credit, color = Color.White, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                 modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth()
+                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f))))
+                     .clickable { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(p.page))) } catch (_: Exception) { } }
+                     .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 4.dp))
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ModelCard(m: BusModel, live: List<LiveBus>, click: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = click), shape = RoundedCornerShape(22.dp),
-         elevation = CardDefaults.cardElevation(2.dp),
-         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            BusPortrait(m, Modifier.size(width = 118.dp, height = 74.dp).clip(RoundedCornerShape(14.dp)))
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(m.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium,
-                     maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(m.kind, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(6.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    for ((op, _) in Fleet.numbers(m)) OperatorTag(op)
+    Card(onClick = click, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
+         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        Box(Modifier.fillMaxWidth().height(150.dp)) {
+            ModelPhoto(m, Modifier.fillMaxSize())
+            Row(Modifier.align(Alignment.TopEnd).padding(10.dp).background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(50))
+                    .padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (live.isNotEmpty()) {
+                    Box(Modifier.size(7.dp).background(Pal.Live, CircleShape))
+                    Spacer(Modifier.width(5.dp))
                 }
+                Text(if (live.isEmpty()) "None out" else "${live.size} out now", color = Color.White, fontSize = 12.sp,
+                     fontWeight = FontWeight.Bold)
             }
-            Spacer(Modifier.width(8.dp))
-            Column(horizontalAlignment = Alignment.End) {
-                Text("${live.size}", fontWeight = FontWeight.Black, fontSize = 26.sp,
-                     color = if (live.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (live.isNotEmpty()) {
-                        Box(Modifier.size(7.dp).background(Pal.Live, CircleShape))
-                        Spacer(Modifier.width(4.dp))
-                    }
-                    Text("out now", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+        }
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(m.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, maxLines = 1,
+                 overflow = TextOverflow.Ellipsis)
+            Text(m.kind, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for ((op, _) in Fleet.numbers(m)) OperatorTag(op)
             }
         }
     }
@@ -196,11 +229,12 @@ private fun ModelCard(m: BusModel, live: List<LiveBus>, click: () -> Unit) {
 private fun OperatorTag(name: String) {
     val code = Fleet.OPERATORS.entries.firstOrNull { it.value == name }?.key ?: ""
     val c = operatorColor(code)
-    Row(Modifier.background(c.copy(alpha = 0.14f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp),
+    Row(Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(7.dp).background(c, CircleShape))
-        Spacer(Modifier.width(4.dp))
-        Text(name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Box(Modifier.size(8.dp).background(c, CircleShape))
+        Spacer(Modifier.width(6.dp))
+        Text(name, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
     }
 }
 
@@ -249,8 +283,8 @@ private fun ModelScreen(vm: AppViewModel, id: String, all: List<LiveBus>, update
     val scroll = rememberScrollState()
 
     Column(modifier.fillMaxSize().verticalScroll(scroll)) {
-        Box(Modifier.fillMaxWidth().height(200.dp)) {
-            BusPortrait(model, Modifier.fillMaxSize(), frameT)
+        Box(Modifier.fillMaxWidth().height(230.dp)) {
+            ModelPhoto(model, Modifier.fillMaxSize(), frameT)
             IconButton(onClick = close, modifier = Modifier.padding(8.dp)
                 .background(Color.Black.copy(alpha = 0.35f), CircleShape)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
