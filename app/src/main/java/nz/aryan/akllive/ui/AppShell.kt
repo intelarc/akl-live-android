@@ -160,7 +160,7 @@ private fun Screens(vm: AppViewModel, nav: NavHostController) {
         composable("live") { LiveScreen(vm, Modifier) }
         composable("trains") {
             DisposableEffect(Unit) { vm.watchTrains(true); onDispose { vm.watchTrains(false) } }
-            TrainScreen(vm, Modifier.statusBarsPadding())
+            TrainScreen(vm, Modifier)
         }
         composable("more") { MoreScreen(vm) }
         composable("search", enterTransition = { fadeIn(tween(180)) }) { SearchScreen(vm) }

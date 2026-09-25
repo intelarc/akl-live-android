@@ -238,9 +238,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun selectBus(tripId: String?) {
-        if (_busTrip.value?.tripId == tripId && tripId != null) return
-        _busTrip.value = tripId?.let { BusTrip(it) }
+    /** A tapped bus's trip; [refresh] fetches its delay and position again (keeping what's shown meanwhile). */
+    fun selectBus(tripId: String?, refresh: Boolean = false) {
+        val same = _busTrip.value?.tripId == tripId && tripId != null
+        if (same && !refresh) return
+        if (!same) _busTrip.value = tripId?.let { BusTrip(it) }
         if (tripId == null) return
         viewModelScope.launch {
             val t = try { liveRepo.trip(tripId) } catch (_: Exception) { return@launch }

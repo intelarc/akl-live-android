@@ -250,8 +250,10 @@ fun SettingsScreen(vm: AppViewModel) {
                             picking = null
                             locate { p ->
                                 if (p == null) vm.toast.tryEmit("Couldn't get your location")
-                                else {
-                                    val saved = p.copy(name = if (kind == PlaceKind.Home) "Home" else "Work", kind = kind)
+                                else scope.launch {
+                                    // the street address, so it reads as somewhere rather than coordinates
+                                    val at = try { nz.aryan.akllive.data.Places.reverse(p.lat, p.lon) } catch (_: Exception) { p }
+                                    val saved = at.copy(kind = kind, lat = p.lat, lon = p.lon)
                                     vm.update { if (kind == PlaceKind.Home) it.copy(home = saved) else it.copy(work = saved) }
                                 }
                             }

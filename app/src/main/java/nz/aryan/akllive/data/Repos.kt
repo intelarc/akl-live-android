@@ -174,8 +174,8 @@ class LiveRepo(private val api: AtApi) {
         val head = headsigns[tripId] ?: api.get("/gtfs/v3/trips/$tripId")?.obj("data")?.obj("attributes")
             ?.optString("trip_headsign")?.let(::cleanHeadsign)?.takeIf { it.isNotEmpty() }
             ?.also { headsigns[tripId] = it }
-        val delay = try { tripUpdates(api, listOf(tripId))[tripId]?.delay } catch (_: Exception) { null }
-        return BusTrip(tripId, head, delay)
+        val u = try { tripUpdates(api, listOf(tripId))[tripId] } catch (_: Exception) { null }
+        return BusTrip(tripId, head, u?.delay, u?.seq)
     }
 }
 

@@ -66,6 +66,12 @@ import nz.aryan.akllive.gtfs.metres
 import nz.aryan.akllive.gtfs.railTrack
 import kotlin.math.atan2
 import kotlin.math.cos
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberBottomSheetScaffoldState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.Brush
 import nz.aryan.akllive.AppViewModel
 import nz.aryan.akllive.data.MapData
 import nz.aryan.akllive.data.Nz
@@ -217,110 +223,97 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
         }.also { headings.keys.retainAll(seen) }
     }
 
-    val map: @Composable (Modifier) -> Unit = { m ->
-        Box(m.clip(RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp))) {
-            LiveMap(mode, linzKey, lines, stopsAndLinks.first, markers, fit, frameT, Modifier.fillMaxSize(),
-                    selected = selTrain, topInset = 70f, fitKey = fitKey, links = stopsAndLinks.second,
-                    onMarker = { id -> state.trains.firstOrNull { it.vehicle.id == id }?.let(pickTrain) },
-                    onStop = { id -> id.toIntOrNull()?.let(pickStation) }, onBackground = clear)
-            MapHeader(state, now, shown, onTitle = {
-                titleTaps++
-                if (titleTaps % 5 == 0) vm.toast.tryEmit(if (titleTaps >= 15) "All aboard the tap train 🚂🚃🚃🚃" else "Choo choo! 🚂")
-            }) { li ->
-                filter = (if (li in shown && shown.size > 1) shown - li else shown + li).sorted()
-            }
-            if (!tt.ready && tt.loading) {
-                Surface(Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp), shape = RoundedCornerShape(50),
-                        color = Color.Black.copy(alpha = 0.6f)) {
-                    Text("Drawing the real tracks once the timetable's in… ${tt.pct}%", color = Color.White, fontSize = 12.sp,
-                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
-                }
-            }
-            Box(Modifier.align(Alignment.BottomStart).padding(10.dp)) {
-                FilledTonalIconButton(onClick = { fitKey++ }) { Icon(Icons.Rounded.ZoomOutMap, "Whole network") }
-            }
-            TrainViewToggle(mode, Modifier.align(Alignment.BottomEnd).padding(10.dp)) { b -> vm.update { it.copy(trainView = b) } }
-        }
-    }
-    val panel: @Composable (Modifier) -> Unit = { m ->
-        Surface(m, color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
+    // the map fills the screen; the network, a train or a station is in the sheet below it
+    val sheet = rememberBottomSheetScaffoldState()
+    BottomSheetScaffold(
+        modifier = modifier.fillMaxSize(),
+        scaffoldState = sheet,
+        sheetPeekHeight = 176.dp,
+        sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        sheetContent = {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
                 val train = state.trains.firstOrNull { it.vehicle.id == selTrain }
                 when {
                     train != null -> TrainPanel(train, trip?.takeIf { it.tripId == train.vehicle.tripId }, now, clear)
-                    selStation != null -> StationPanel(selStation!!, station?.takeIf { it.first == selStation }?.second,
-                                                       now, clear)
+                    selStation != null -> StationPanel(selStation!!, station?.takeIf { it.first == selStation }?.second, now, clear)
                     else -> Overview(state, now)
+                }
+            }
+        },
+    ) { _ ->
+        Box(Modifier.fillMaxSize()) {
+            LiveMap(mode, linzKey, lines, stopsAndLinks.first, markers, fit, frameT, Modifier.fillMaxSize(),
+                    selected = selTrain, topInset = 120f, bottomInset = 170f, fitKey = fitKey, links = stopsAndLinks.second,
+                    onMarker = { id -> state.trains.firstOrNull { it.vehicle.id == id }?.let(pickTrain) },
+                    onStop = { id -> id.toIntOrNull()?.let(pickStation) }, onBackground = clear)
+            // header over a soft shade, as on the Live map
+            Box(Modifier.fillMaxWidth().height(190.dp).background(
+                Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent))))
+            Column(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 6.dp)) {
+                Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Ngā Tereina", color = Color.White, fontWeight = FontWeight.Black, fontSize = 24.sp,
+                             modifier = Modifier.clickable(interactionSource = null, indication = null) {
+                                 titleTaps++
+                                 if (titleTaps % 5 == 0) vm.toast.tryEmit(if (titleTaps >= 15) "All aboard the tap train 🚂🚃🚃🚃" else "Choo choo! 🚂")
+                             })
+                        Text(state.error?.takeIf { state.trains.isEmpty() }
+                                 ?: "${state.trains.size} train${if (state.trains.size == 1) "" else "s"} running · ${liveAgo(state.updated, now)}",
+                             color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    TrainViewToggle(mode, Modifier) { b -> vm.update { it.copy(trainView = b) } }
+                }
+                Spacer(Modifier.height(10.dp))
+                val counts = state.counts()
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    for (li in MapData.LINE_IDS.indices) {
+                        LineFilter(li, counts[li], li in shown) {
+                            filter = (if (li in shown && shown.size > 1) shown - li else shown + li).sorted()
+                        }
+                    }
+                    Box(Modifier.size(36.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.5f))
+                            .border(1.dp, Color.White.copy(alpha = 0.28f), CircleShape).clickable { fitKey++ },
+                        contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.ZoomOutMap, "Whole network", tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                }
+                if (!tt.ready && tt.loading) {
+                    Text("Drawing the real tracks once the timetable's in… ${tt.pct}%", color = Color.White.copy(alpha = 0.85f),
+                         fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, top = 6.dp))
                 }
             }
         }
     }
+}
 
-    BoxWithConstraints(modifier.fillMaxSize()) {
-        val maxH = maxHeight                  // read here: inner layout scopes can't see it
-        if (maxWidth > maxH) {
-            Row(Modifier.fillMaxSize()) {
-                map(Modifier.weight(1.5f).fillMaxHeight())
-                panel(Modifier.weight(1f).fillMaxHeight())
-            }
-        } else {
-            Column(Modifier.fillMaxSize()) {
-                map(Modifier.fillMaxWidth().weight(1f))
-                panel(Modifier.fillMaxWidth().heightIn(max = maxH * 0.48f))
-            }
-        }
+/** A line's filter, over the map: its colour, name and how many trains are on it. */
+@Composable
+private fun LineFilter(li: Int, count: Int, on: Boolean, click: () -> Unit) {
+    Row(Modifier.clip(RoundedCornerShape(50)).background(if (on) Color.White else Color.Black.copy(alpha = 0.5f))
+            .border(1.dp, Color.White.copy(alpha = if (on) 1f else 0.28f), RoundedCornerShape(50))
+            .clickable(onClick = click).padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(10.dp).background(Pal.line(li), CircleShape).border(1.dp, Color.White, CircleShape))
+        Spacer(Modifier.width(6.dp))
+        Text(MapData.LINE_IDS[li], color = if (on) Pal.Navy else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(5.dp))
+        Text("$count", color = if (on) Pal.AtBlue else Color.White.copy(alpha = 0.7f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
     }
 }
 
 /** Diagram / Satellite / Map, floating over the bottom-right of the map. */
 @Composable
 private fun TrainViewToggle(mode: Basemap, modifier: Modifier, set: (Basemap) -> Unit) {
-    Row(modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.55f))
-            .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(50)).padding(3.dp),
+    Row(modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.45f))
+            .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(50)).padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         for ((b, label) in listOf(Basemap.Diagram to "Diagram", Basemap.Satellite to "Satellite", Basemap.Streets to "Map")) {
             val on = mode == b
             Box(Modifier.clip(RoundedCornerShape(50)).background(if (on) Color.White else Color.Transparent)
-                    .clickable { set(b) }.padding(horizontal = 11.dp, vertical = 6.dp)) {
-                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (on) Pal.Navy else Color.White)
+                    .clickable { set(b) }.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on) Pal.Navy else Color.White)
             }
-        }
-    }
-}
-
-@Composable
-private fun MapHeader(state: TrainState, now: Long, filter: Set<Int>, onTitle: () -> Unit = {}, toggle: (Int) -> Unit) {
-    val counts = state.counts()
-    Column(Modifier.fillMaxWidth().background(Pal.AtBlue).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Ngā Tereina", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp,
-                 modifier = Modifier.clickable(interactionSource = null, indication = null, onClick = onTitle))
-            Spacer(Modifier.width(8.dp))
-            Text("Trains · live", color = Color(0xFFBED4F0), fontSize = 14.sp)
-            Spacer(Modifier.weight(1f))
-            Text(Nz.time(now), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (li in MapData.LINE_IDS.indices) {
-                val on = li in filter
-                Row(
-                    Modifier.clip(RoundedCornerShape(50))
-                        .background(if (on) Color.White else Color.White.copy(alpha = 0.12f))
-                        .border(1.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(50))
-                        .clickable { toggle(li) }
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.size(10.dp).background(Pal.line(li), CircleShape))
-                    Spacer(Modifier.width(6.dp))
-                    Text("${MapData.LINE_IDS[li]}  ${counts[li]}", fontWeight = FontWeight.Bold, fontSize = 13.sp,
-                         color = if (on) Pal.Navy else Color.White)
-                }
-            }
-        }
-        state.error?.let {
-            Text(it, color = Color(0xFFFFD2D2), fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
         }
     }
 }
@@ -333,32 +326,45 @@ private fun Overview(state: TrainState, now: Long) {
         LiveBadge(state.updated, now)
     }
     Spacer(Modifier.height(10.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (li in MapData.LINE_IDS.indices) {
+            val trains = state.trains.filter { it.line == li }
+            val known = trains.mapNotNull { it.delay }
+            val late = known.count { it >= 120 }
+            Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                       .padding(horizontal = 12.dp, vertical = 10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LinePill(li)
+                    Spacer(Modifier.weight(1f))
+                    Text("${trains.size}", fontWeight = FontWeight.Black, fontSize = 20.sp)
+                }
+                Text(when {
+                    trains.isEmpty() -> "None running"
+                    known.isEmpty() -> "Timing soon"
+                    late == 0 -> "All on time"
+                    else -> "$late late"
+                }, style = MaterialTheme.typography.labelMedium, maxLines = 1,
+                     color = if (late > 0) Pal.Warn else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+    Spacer(Modifier.height(16.dp))
     for (li in MapData.LINE_IDS.indices) {
         val trains = state.trains.filter { it.line == li }
         val known = trains.mapNotNull { it.delay }
-        val late = known.count { it >= 120 }
         val avg = if (known.isEmpty()) null else known.average().toInt()
-        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            LinePill(li, big = true)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(MapData.LINE_NAMES[li], fontWeight = FontWeight.Bold)
-                Text(when {
-                    trains.isEmpty() -> "No trains running"
-                    known.isEmpty() -> "Waiting for live times"
-                    late == 0 -> "All on time"
-                    else -> "$late running late · average ${punctuality(avg).first.lowercase()}"
-                }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text("${trains.size}", fontWeight = FontWeight.Black, fontSize = 24.sp)
+        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(10.dp).background(Pal.line(li), CircleShape))
+            Spacer(Modifier.width(10.dp))
+            Text(MapData.LINE_NAMES[li], fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text(if (avg == null) "—" else "average ${punctuality(avg).first.lowercase()}",
+                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
     }
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(10.dp))
     Text("Tap a train for where it's going, its speed and its next stops. Tap a station for live " +
          "departures from every platform. The lines follow the real tracks, side by side where they share rails, " +
-         "with every train where its GPS puts it, pointing the way it's heading. Te Huia runs on to Hamilton. " +
-         "Satellite and Map show it all over aerial photos or a street map.",
+         "with every train where its GPS puts it, pointing the way it's heading. Te Huia runs on to Hamilton.",
          style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
