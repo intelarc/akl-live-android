@@ -1,9 +1,11 @@
 # AKL Live
 
-An Android app for live Auckland Transport buses and trains, built for the
-Galaxy S26. It's the phone version of
+A native Android app for getting around Auckland: live buses, trains and
+ferries, journey planning on AT's full timetable, and a few quirks. Built for
+the Galaxy S26 with Kotlin, Jetpack Compose and Material 3. It started as the
+phone version of
 [akl-departure-board](https://github.com/intelarc/akl-departure-board), the
-ESP32 desk display.
+ESP32 desk display, and brings over the features of the desktop app.
 
 ## Install
 
@@ -13,13 +15,30 @@ builds a new signed APK there. Installing it updates the app in place.
 
 The app needs an Auckland Transport API key, and none is built in. Sign up at
 [dev-portal.at.govt.nz](https://dev-portal.at.govt.nz) (it's free), subscribe
-to the GTFS and realtime APIs, and paste your key in the app's Settings. The
-app opens on Settings until a key is set.
+to the GTFS and realtime APIs, and paste your key in the app's Settings. Home
+shows a card pointing there until a key is set.
 
-## Buses
+The bottom bar has **Home**, **Directions**, **Live** (every bus), **Trains**
+and **More** (search, alerts, routes, the fleet, the fleet dex, settings).
 
-The 27H at Aldersgate Road, Hillsborough, both directions: stop 8669 to
-Britomart and 8664 to Waikowhai. Stops and route can be changed in Settings.
+## Home
+
+A greeting for the time of day (Mōrena, Kia ora, Ahiahi mārie in Kiwi mode), a
+line on how things look ("The 27H's running 6 min late, eh", "Double-decker
+incoming"), the time and the weather, then:
+
+- **Leave in…** for the next bus each way, from how long your walk to the stop
+  is. Miss it and it tells you when to leave for the one after, or to run.
+- **A search bar** for everything, and one-tap chips: take me home, to work,
+  every bus, alerts.
+- **Your stops' live scenes** (below), each with **Track** and **All departures**.
+- **The next 12 hours of weather**, with the chance of rain.
+- **Favourite stops** with their next departures, live.
+- **Stops near me** from your location.
+- **The live route map** and your **fleet dex** progress.
+
+Home's scenes follow your stops: by default the 27H at Aldersgate Road,
+Hillsborough, both directions (stop 8669 to Britomart, 8664 to Waikowhai).
 
 - **A live scene per direction.** The bus drives toward the stop as its arrival
   counts down, and its wheels turn while it's moving. The sky follows the real
@@ -42,6 +61,71 @@ Britomart and 8664 to Waikowhai. Stops and route can be changed in Settings.
   photos (or a street map), every bus on its way to you gliding between GPS
   fixes and pointing where it's heading. Tap it for full screen, then tap a bus
   to see what it is. Pull down anywhere to refresh.
+- **Tap the scene** and the bus honks.
+
+## Directions
+
+Journey planning across buses, trains and ferries, on the phone. AT's full
+GTFS timetable (about 29 MB) downloads once, is checked for updates every six
+hours, and each service day is compiled into a compact network cached on the
+phone. A RAPTOR planner, ported from the desktop app, finds the fastest
+journeys with 1, 2, 3 or more rides, walking between nearby stops for changes.
+
+- **From and to**: your location, home, work, favourite stops, recent places,
+  any stop or station, any address or place (Photon / OpenStreetMap), or a pin
+  dropped on the map.
+- **Leave now, leave at or arrive by**, today or any day in the next week.
+- **Options**: how far you'll walk, your pace, buses/trains/ferries, how many
+  changes.
+- **Each option** shows its times, the rides in order, walking, changes and
+  "leave in", with live delays on the first ride and tags for the fastest,
+  fewest changes and least walking. If walking there takes under 25 minutes,
+  that shows too.
+- **The journey view**: the whole trip over a map, with the ride shapes and
+  every bus or train live on them, walking paths with turn-by-turn directions
+  (OSRM), every stop on each ride, platforms, and "3 stops away" / "you're on
+  it: 5 stops to go". Share it, add it to your calendar, or track a ride.
+
+## Stops, routes and search
+
+- **Any stop or station**: live departures from every platform, filtered by
+  route, with each bus's model, how late it is and how many stops away. Tap one
+  to see the bus and track it. There's a map of the stop with the buses heading
+  for it (tap one to see its route), alerts for the stop and its routes,
+  favourites with nicknames, directions to or from it, and **add to home
+  screen** as its own icon.
+- **Any route**: its paths on a map, its stops each way, trips today, first and
+  last departures, who runs it, and every bus on it right now.
+- **Search** finds stops (by name or the number on the sign), routes, places,
+  bus models and fleet numbers. With nothing typed, it shows saved places,
+  favourites and recent searches.
+- **Alerts**: AT's disruptions with yours first (your route, stops and
+  favourites), then everything happening now or coming up, searchable by route.
+
+## On your phone
+
+- **Track a bus**: a notification that counts down to it on its own, shows how
+  many stops away it is, its model and how full it is, updated every 20 s. It
+  buzzes when it's time to leave (your walk plus a lead time you choose), and
+  stops itself once the bus has been.
+- **Home screen widget**: your next bus each way, refreshed in the background.
+- **Quick settings tile**: "27H · 6 min" in the notification shade.
+- **App shortcuts**: long-press the icon for Directions, Live, Trains, Search
+  and your favourite stops.
+- **Links**: `akllive://stop/8669`, `akllive://route/27H`, `akllive://plan` and
+  the rest open straight to the screen.
+
+## Looks and quirks
+
+- **Material 3** throughout, with six colour themes named after Auckland
+  things (Waitematā, Pōhutukawa, Kawakawa, Kōwhai, Rangitoto, Tūī), Material
+  You colours from your wallpaper, light, dark and pure black.
+- **Shake to refresh**, haptics on taps, predictive back, a splash screen,
+  and a themed icon.
+- **Kiwi mode**: "Sweet as", "Chur!", "Gutted.", "Time to hit the road!".
+- **Fleet dex**: every bus model that pulls up at your stops is spotted and
+  counted, from Rookie spotter to Ultimate spotter. Unseen ones stay mysteries.
+- A few things to find in search, and in Settings' version number.
 
 ## Live
 
@@ -92,8 +176,13 @@ out west. Harbours and volcanic cones sit behind it.
 
 ## How it's built
 
-Kotlin + Jetpack Compose. The scenes, the train diagram and the vehicle
-markers are drawn with Compose Canvas. The real maps are
+Kotlin, Jetpack Compose and Material 3, with navigation-compose, Glance for
+the widget and WorkManager behind it. The scenes, the train diagram and the
+vehicle markers are drawn with Compose Canvas. The journey planner
+(`gtfs/`) is plain Kotlin: a streaming GTFS reader, a compiler that turns a
+service day into flat arrays (routes, stops, trips grouped into patterns,
+footpaths between stops within 450 m, shapes) saved to disk, and RAPTOR over
+them. The real maps are
 [MapLibre](https://maplibre.org) (open source), with:
 
 - satellite: [Esri World Imagery](https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9),
@@ -114,6 +203,12 @@ Transit data comes straight from the
 | Station departures | stoptrips for each platform (platforms from `parent_station`) |
 | Every bus (Live, Fleet) | `realtime/legacy/vehiclelocations`, the whole feed (~80 KB gzipped) |
 | Bus operator and model | the vehicle label (`TR3884`) looked up in `app/src/main/assets/fleet.tsv` and `models.json` |
+| Service alerts | `realtime/legacy/servicealerts` |
+| The timetable (Directions, stops, routes) | `https://gtfs.at.govt.nz/gtfs.zip` |
+
+Other open services: [Photon](https://photon.komoot.io) for places,
+[FOSSGIS OSRM](https://routing.openstreetmap.de) for walking directions and
+[Open-Meteo](https://open-meteo.com) for weather. None needs a key.
 
 Train GPS fixes are snapped onto the nearest station-to-station stretch of the
 train's own line on the schematic. `tools/gen_data.py` generates the map
