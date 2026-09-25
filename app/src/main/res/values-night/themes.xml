@@ -1,5 +1,5 @@
 <resources>
     <style name="Theme.AklLive" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#FF0D1522</item>
+        <item name="android:windowBackground">@color/page</item>
     </style>
 </resources>

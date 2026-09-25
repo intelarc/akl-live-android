@@ -4,7 +4,6 @@ import android.os.SystemClock
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.MutableState
@@ -99,7 +98,7 @@ fun TrainMap(
     onNothing: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val pal = if (isSystemInDarkTheme()) DarkMap else LightMap
+    val pal = if (LocalDark.current) DarkMap else LightMap
     val lines = remember { MapData.LINE_DRAW.map { path(it) } }
     val crl = remember { path(MapData.CRL_LOOP) }
     val land = remember { MapData.LAND.map { path(it, true) } }

@@ -34,7 +34,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
+import nz.aryan.akllive.data.distanceKm
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,7 +49,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -84,10 +89,6 @@ import nz.aryan.akllive.data.StopBoard
 import nz.aryan.akllive.data.Vehicle
 import nz.aryan.akllive.data.Weather
 import nz.aryan.akllive.data.occupancyText
-import kotlin.math.asin
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
 
 /** Epoch seconds, ticking once a second. */
 @Composable
@@ -109,110 +110,8 @@ fun rememberFrameTime(): State<Float> {
     return s
 }
 
-fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-    val r = 6371.0
-    val dLat = Math.toRadians(lat2 - lat1)
-    val dLon = Math.toRadians(lon2 - lon1)
-    val a = sin(dLat / 2) * sin(dLat / 2) +
-            cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2) * sin(dLon / 2)
-    return 2 * r * asin(sqrt(a))
-}
-
 /** The bus's make and model, when the fleet list knows its fleet number. */
 fun Vehicle.busModel(): BusModel? = Fleet.info(label)?.model
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun BusScreen(vm: AppViewModel, modifier: Modifier) {
-    val boards by vm.boards.collectAsStateWithLifecycle()
-    val error by vm.busError.collectAsStateWithLifecycle()
-    val pulling by vm.pulling.collectAsStateWithLifecycle()
-    val basemap by vm.basemap.collectAsStateWithLifecycle()
-    val linzKey by vm.linzKey.collectAsStateWithLifecycle()
-    val weather by vm.weather.collectAsStateWithLifecycle()
-    val now by rememberNow()
-    val frameT = rememberFrameTime()
-    var mapOpen by rememberSaveable { mutableStateOf(false) }
-
-    if (mapOpen) {
-        Box(modifier.fillMaxSize()) {
-            BusMapScreen(boards, now, vm.prefs.place, basemap, linzKey, frameT, vm::setBasemap) { mapOpen = false }
-        }
-        return
-    }
-    PullToRefreshBox(pulling, onRefresh = vm::pullRefresh, modifier = modifier.fillMaxSize()) {
-        LazyColumn(
-            Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            item { BusHeader(vm.prefs.place, vm.prefs.route, now, boards, error, weather) { vm.pullRefresh() } }
-            itemsIndexed(boards, key = { _, b -> b.code }) { i, b -> BusCard(b, now, frameT, i, weather) }
-            item {
-                RouteMapCard(boards, now, vm.prefs.place, basemap, linzKey, frameT) { mapOpen = true }
-            }
-            item {
-                Text("Live data from Auckland Transport. Buses enter the scene 20 minutes out. Pull down to refresh.",
-                     style = MaterialTheme.typography.bodySmall,
-                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                     modifier = Modifier.padding(horizontal = 4.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun BusHeader(place: String, route: String, now: Long, boards: List<StopBoard>, error: String?,
-                      weather: Weather?, onRefresh: () -> Unit) {
-    Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(place, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
-                val stop = boards.firstOrNull { it.name.isNotEmpty() }?.name ?: "…"
-                Text("$route · $stop", style = MaterialTheme.typography.bodyMedium,
-                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(Nz.time(now), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                weather?.let {
-                    Text("${Math.round(it.tempC)}° · ${it.describe(isNight(Nz.hour()))}",
-                         style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                LiveBadge(boards.maxOfOrNull { it.updated } ?: 0L, now)
-            }
-            IconButton(onClick = onRefresh) { Icon(Icons.Filled.Refresh, "Refresh") }
-        }
-        // the next bus each way, at a glance
-        val glance = boards.mapNotNull { b -> b.departures.firstOrNull { !it.cancelled }?.let { b to it } }
-        if (glance.isNotEmpty()) {
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                glance.forEachIndexed { i, (b, d) ->
-                    Row(Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surface)
-                            .padding(start = 6.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(22.dp).background(DirColors[i % 2], CircleShape), contentAlignment = Alignment.Center) {
-                            Text(if (i == 0) "↑" else "↓", color = Color.White, fontWeight = FontWeight.Black, fontSize = 12.sp)
-                        }
-                        Spacer(Modifier.width(7.dp))
-                        Text(b.headsign.ifEmpty { "…" }, style = MaterialTheme.typography.labelLarge)
-                        Spacer(Modifier.width(6.dp))
-                        Text(countdown(d.expected - now), style = MaterialTheme.typography.labelLarge,
-                             fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
-                        d.vehicle?.busModel()?.takeIf { it.electric }?.let {
-                            Text(" ⚡", style = MaterialTheme.typography.labelLarge)
-                        }
-                    }
-                }
-            }
-        }
-        if (error != null) {
-            Text(error, color = Color.White, style = MaterialTheme.typography.bodySmall,
-                 modifier = Modifier.padding(top = 8.dp).fillMaxWidth()
-                     .background(Pal.Late, RoundedCornerShape(10.dp)).padding(10.dp))
-        }
-    }
-}
 
 @Composable
 fun LiveBadge(updated: Long, now: Long) {
@@ -233,8 +132,13 @@ fun LiveBadge(updated: Long, now: Long) {
     }
 }
 
+/**
+ * One of your stops: its live scene, the next bus in detail, and the buses after.
+ * Tap the scene and the bus honks.
+ */
 @Composable
-private fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int, weather: Weather?) {
+fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int, weather: Weather?,
+            onTrack: (BusDeparture) -> Unit = {}, onOpen: () -> Unit = {}) {
     val next = b.departures.firstOrNull()
     val city = b.headsign.contains("Britomart", true) || b.headsign.contains("City", true)
     val scenery = remember(city, index) { Scenery(city, index) }
@@ -254,7 +158,12 @@ private fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int, w
 
     Card(shape = RoundedCornerShape(24.dp), elevation = CardDefaults.cardElevation(3.dp),
          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Box(Modifier.fillMaxWidth().height(210.dp)) {
+        var honk by remember { mutableStateOf(0L) }
+        val view = LocalView.current
+        val haptics = LocalHaptics.current
+        Box(Modifier.fillMaxWidth().height(210.dp).pointerInput(Unit) {
+            detectTapGestures { honk = System.currentTimeMillis(); haptics.heavy(view) }
+        }) {
             Canvas(Modifier.fillMaxSize()) {
                 drawBusScene(scenery, Nz.hour(), frameT.value,
                              if (next == null || eta == null || eta > 1500) null else progress.value,
@@ -281,6 +190,17 @@ private fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int, w
                 }
                 BigCountdown(next, now)
             }
+            // beep beep
+            val shown = System.currentTimeMillis() - honk < 1600
+            androidx.compose.animation.AnimatedVisibility(shown, Modifier.align(Alignment.BottomCenter).padding(bottom = 58.dp),
+                                                         enter = androidx.compose.animation.scaleIn() + fadeIn(),
+                                                         exit = fadeOut()) {
+                Box(Modifier.background(Color.White, RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 6.dp)) {
+                    Text(if (next == null) "No bus yet! 🚏" else if (next.vehicle?.busModel()?.electric == true) "Bzzt ⚡ beep beep!" else "Beep beep! 📯",
+                         color = Pal.Navy, fontWeight = FontWeight.Black)
+                }
+            }
+            if (shown) LaunchedEffect(honk) { delay(1700); honk = 0L }
         }
         Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             if (b.error != null && b.departures.isEmpty()) {
@@ -290,6 +210,16 @@ private fun BusCard(b: StopBoard, now: Long, frameT: State<Float>, index: Int, w
                      style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 NextBusDetail(next, b, DirColors[index % 2])
+                if (!next.cancelled) {
+                    Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledTonalButton(onClick = { onTrack(next) }) {
+                            Icon(Icons.Rounded.NotificationsActive, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Track")
+                        }
+                        OutlinedButton(onClick = onOpen) { Text("All departures") }
+                    }
+                }
             }
             if (b.departures.size > 1) {
                 HorizontalDivider(Modifier.padding(vertical = 10.dp), color = MaterialTheme.colorScheme.surfaceVariant)

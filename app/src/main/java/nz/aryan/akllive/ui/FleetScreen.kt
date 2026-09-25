@@ -102,7 +102,6 @@ fun FleetScreen(vm: AppViewModel, modifier: Modifier) {
                verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Column {
-                Text("Fleet", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
                 val known = state.buses.size - unknown.size
                 Text(if (state.loading) "Counting the buses on the road…"
                      else "${Fleet.models.size} models · %,d buses out right now".format(state.buses.size) +

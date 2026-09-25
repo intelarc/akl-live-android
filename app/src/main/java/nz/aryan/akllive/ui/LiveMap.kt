@@ -6,7 +6,6 @@ import android.graphics.RectF
 import android.os.SystemClock
 import android.view.Gravity
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -191,15 +190,17 @@ fun LiveMap(
     interactive: Boolean = true,
     selected: String? = null,
     topInset: Float = 0f,
+    bottomInset: Float = 0f,
     crowd: List<CrowdDot> = emptyList(),
     focus: MapFocus? = null,
     onCrowd: (String) -> Unit = {},
     onMarker: (String) -> Unit = {},
     onStop: (String) -> Unit = {},
     onBackground: () -> Unit = {},
+    onLongPress: ((Double, Double) -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    val dark = isSystemInDarkTheme()
+    val dark = LocalDark.current
     val density = LocalDensity.current.density
     val mapView = remember {
         MapLibre.getInstance(context.applicationContext)
@@ -223,6 +224,7 @@ fun LiveMap(
     val tapStop by rememberUpdatedState(onStop)
     val tapNothing by rememberUpdatedState(onBackground)
     val tapCrowd by rememberUpdatedState(onCrowd)
+    val longPress by rememberUpdatedState(onLongPress)
     val crowdGlides = remember { HashMap<String, Glide>() }
 
     // MapView follows the screen's lifecycle, and is torn down with this composable
@@ -286,6 +288,12 @@ fun LiveMap(
                     st != null && stD!! < 20 * density -> tapStop(st.id!!)
                     else -> tapNothing()
                 }
+                true
+            }
+            // long-press anywhere: drop a pin there (directions from or to it)
+            m.addOnMapLongClickListener { ll ->
+                val f = longPress ?: return@addOnMapLongClickListener false
+                f(ll.latitude, ll.longitude)
                 true
             }
             map = m
@@ -368,7 +376,8 @@ fun LiveMap(
             val b = LatLngBounds.Builder()
             fit.forEach { b.include(LatLng(it.first, it.second)) }
             val pad = (36 * density).toInt()
-            m.moveCamera(CameraUpdateFactory.newLatLngBounds(b.build(), pad, pad + (topInset * density).toInt(), pad, pad))
+            m.moveCamera(CameraUpdateFactory.newLatLngBounds(b.build(), pad, pad + (topInset * density).toInt(), pad,
+                                                               pad + (bottomInset * density).toInt()))
         }
     }
 

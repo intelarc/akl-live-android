@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="plan" android:enabled="true" android:icon="@drawable/ic_sc_plan"
+        android:shortcutShortLabel="@string/sc_plan" android:shortcutLongLabel="@string/sc_plan_long">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="nz.aryan.akllive"
+            android:targetClass="nz.aryan.akllive.MainActivity" android:data="akllive://plan" />
+    </shortcut>
+    <shortcut android:shortcutId="live" android:enabled="true" android:icon="@drawable/ic_sc_live"
+        android:shortcutShortLabel="@string/sc_live" android:shortcutLongLabel="@string/sc_live_long">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="nz.aryan.akllive"
+            android:targetClass="nz.aryan.akllive.MainActivity" android:data="akllive://live" />
+    </shortcut>
+    <shortcut android:shortcutId="trains" android:enabled="true" android:icon="@drawable/ic_sc_trains"
+        android:shortcutShortLabel="@string/sc_trains" android:shortcutLongLabel="@string/sc_trains_long">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="nz.aryan.akllive"
+            android:targetClass="nz.aryan.akllive.MainActivity" android:data="akllive://trains" />
+    </shortcut>
+    <shortcut android:shortcutId="search" android:enabled="true" android:icon="@drawable/ic_sc_search"
+        android:shortcutShortLabel="@string/sc_search" android:shortcutLongLabel="@string/sc_search_long">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="nz.aryan.akllive"
+            android:targetClass="nz.aryan.akllive.MainActivity" android:data="akllive://search" />
+    </shortcut>
+</shortcuts>

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -144,9 +145,9 @@ fun LiveScreen(vm: AppViewModel, modifier: Modifier) {
                 onMarker = { selected = it }, onBackground = { selected = null; focusManager.clearFocus() })
 
         // header over a soft shade
-        Box(Modifier.fillMaxWidth().height(190.dp).background(
+        Box(Modifier.fillMaxWidth().height(220.dp).background(
             Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.62f), Color.Transparent))))
-        Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+        Column(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 6.dp)) {
             Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Every bus", color = Color.White, fontWeight = FontWeight.Black, fontSize = 24.sp)

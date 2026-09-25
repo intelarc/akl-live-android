@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -147,9 +148,9 @@ fun BusMapScreen(boards: List<StopBoard>, now: Long, place: String, basemap: Bas
         LiveMap(basemap, linzKey, data.lines, data.stops, data.markers, data.fit, frameT, Modifier.fillMaxSize(),
                 selected = selected, onMarker = { selected = it }, onBackground = { selected = null })
         // top bar over a soft shade
-        Box(Modifier.fillMaxWidth().height(120.dp).background(
+        Box(Modifier.fillMaxWidth().height(150.dp).background(
             Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent))))
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
