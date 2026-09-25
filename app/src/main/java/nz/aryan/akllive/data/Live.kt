@@ -262,12 +262,25 @@ data class StopDeparture(
 }
 
 class StopRepo(private val api: AtApi) {
+    private val ids = HashMap<String, String>()
+
+    /** A stop's id from the number on its sign ("8669"), for before the timetable has loaded. */
+    private suspend fun idOf(key: String): String {
+        if (!key.all { it.isDigit() }) return key
+        ids[key]?.let { return it }
+        val id = api.get("/gtfs/v3/stops?filter%5Bstop_code%5D=$key")?.arr("data")?.optJSONObject(0)
+            ?.obj("attributes")?.optString("stop_id")?.takeIf { it.isNotEmpty() } ?: key
+        ids[key] = id
+        return id
+    }
+
     /** Departures in the next few hours from these stops (a station's platforms: stop id -> platform). */
     suspend fun departures(stops: Map<String, String>, hours: Int = 3): List<StopDeparture> {
         val now = Nz.now()
         val nowSec = Nz.nowSec()
         val rows = ArrayList<StopDeparture>()
-        for ((stopId, platform) in stops) {
+        for ((key, platform) in stops) {
+            val stopId = idOf(key)
             val queries = mutableListOf(Nz.date(now) to maxOf(0, now.hour - 1))
             if (now.hour < 3) queries += Nz.date(now.minusDays(1)) to (now.hour + 23)
             for ((date, hour) in queries) {

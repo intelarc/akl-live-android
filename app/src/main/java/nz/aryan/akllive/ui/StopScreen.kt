@@ -124,8 +124,11 @@ fun StopScreen(vm: AppViewModel, id: String) {
     var tick by remember { mutableIntStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
     val platforms = remember(detail, id) { platformMap(detail?.stop?.id ?: id) }
-    val deps by rememberPolled(platforms to tick, 30_000) { vm.stopDepartures(platforms) }
-    LaunchedEffect(deps) { refreshing = false }
+    var err by remember { mutableStateOf<String?>(null) }
+    val deps by rememberPolled(platforms to tick, 30_000) {
+        try { vm.stopDepartures(platforms).also { err = null } } catch (e: Exception) { err = e.message ?: "Couldn't reach AT"; throw e }
+        finally { refreshing = false }
+    }
     var only by rememberSaveable(id) { mutableStateOf<String?>(null) }
     var open by rememberSaveable(id) { mutableStateOf<String?>(null) }
     var renaming by remember { mutableStateOf(false) }
@@ -229,6 +232,11 @@ fun StopScreen(vm: AppViewModel, id: String) {
                     s.apiKey.isBlank() -> item("nokey") {
                         EmptyState(Icons.Rounded.Warning, "No AT key yet", "Add your free key in Settings to see live departures.") {
                             FilledTonalButton(onClick = { nav.go("settings") }) { Text("Open Settings") }
+                        }
+                    }
+                    list == null && err != null -> item("err") {
+                        EmptyState(Icons.Rounded.Warning, "Couldn't load departures", err ?: "") {
+                            FilledTonalButton(onClick = { tick++ }) { Text("Try again") }
                         }
                     }
                     list == null -> item("loading") { LinearProgressIndicator(Modifier.fillMaxWidth()) }

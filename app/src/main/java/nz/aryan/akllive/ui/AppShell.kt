@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
@@ -121,7 +122,10 @@ fun AklApp(vm: AppViewModel, deepLink: StateFlow<String?>, consumeLink: () -> Un
                     }
                 },
             ) { pad ->
-                Box(Modifier.fillMaxSize().padding(pad)) {
+                // lists stay clear of the navigation bar; maps and the journey sheet run under it
+                val tab = TABS.any { it.route == route }
+                val underBar = route == "journey/{i}" || route == "busmap"
+                Box(Modifier.fillMaxSize().padding(pad).let { if (tab || underBar) it else it.navigationBarsPadding() }) {
                     Screens(vm, nav)
                 }
             }
