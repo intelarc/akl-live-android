@@ -70,6 +70,11 @@ import nz.aryan.akllive.data.Nz
 import nz.aryan.akllive.gtfs.Timetable
 import nz.aryan.akllive.gtfs.TripInfo
 import nz.aryan.akllive.gtfs.tripInfo
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.input.pointer.pointerInput
 import nz.aryan.akllive.AppViewModel
 import nz.aryan.akllive.data.BusTrip
 import nz.aryan.akllive.data.Fleet
@@ -296,9 +301,27 @@ private fun FilterPill(text: String, count: Int, dot: Color?, on: Boolean, click
 private fun LiveBusCard(b: LiveBus, trip: BusTrip?, ahead: List<Ahead>, now: Long, follow: Boolean,
                         onFollow: () -> Unit, onZoom: () -> Unit, onStop: (String) -> Unit, close: () -> Unit) {
     val color = operatorColor(b.info.code)
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainer,
-            shadowElevation = 6.dp) {
-        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp)) {
+    // small by default so the map stays in view; drag up (or tap the handle) for the rest
+    var expanded by rememberSaveable(b.v.id) { mutableStateOf(false) }
+    var drag by remember { mutableFloatStateOf(0f) }
+    Surface(Modifier.fillMaxWidth().pointerInput(b.v.id) {
+                detectVerticalDragGestures(
+                    onDragStart = { drag = 0f },
+                    onDragEnd = {
+                        when {
+                            drag < -40 -> expanded = true
+                            drag > 40 && expanded -> expanded = false
+                            drag > 90 -> close()
+                        }
+                    },
+                ) { _, dy -> drag += dy }
+            }, shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp) {
+        Column(Modifier.animateContentSize().padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 10.dp)) {
+            Box(Modifier.fillMaxWidth().clickable(interactionSource = null, indication = null) { expanded = !expanded }
+                    .padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(width = 36.dp, height = 4.dp).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                                                           RoundedCornerShape(50)))
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.background(color, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 3.dp)) {
                     Text(b.route ?: "—", color = Color.White, fontWeight = FontWeight.Black, fontSize = 17.sp)
@@ -315,6 +338,21 @@ private fun LiveBusCard(b: LiveBus, trip: BusTrip?, ahead: List<Ahead>, now: Lon
                          color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }
                 IconButton(onClick = close) { Icon(Icons.Filled.Close, "Close", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            if (!expanded) {
+                // one line: how it's running and what's next
+                Row(Modifier.fillMaxWidth().clickable { expanded = true }.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (b.route != null) {
+                        val (text, c) = punctuality(trip?.delay)
+                        Chip(if (trip?.delay == null) "Timing unknown" else text, if (trip?.delay == null) Pal.Ink else c)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(ahead.firstOrNull()?.let { "Next: ${it.stop.name} · ${countdown(it.eta - now)}" }
+                             ?: (b.info.model?.short ?: b.info.fleetNo),
+                         style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Icon(Icons.Filled.KeyboardArrowUp, "More", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                return@Column
             }
             Spacer(Modifier.height(8.dp))
             VehicleInfo(b.v, big = true)
