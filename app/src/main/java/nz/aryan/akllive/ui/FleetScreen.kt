@@ -172,7 +172,7 @@ private fun BusPortrait(model: BusModel?, modifier: Modifier, frameT: State<Floa
 }
 
 /**
- * A real photo of the model (from Wikimedia Commons, credited on it) over the
+ * A real photo of the model (from its AT Metro Wiki page, credited on it) over the
  * drawn bus, which shows until the photo's in, or if there isn't one.
  */
 @Composable
@@ -193,6 +193,19 @@ private fun ModelPhoto(m: BusModel?, modifier: Modifier, frameT: State<Float>? =
                      .clickable { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(p.page))) } catch (_: Exception) { } }
                      .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 4.dp))
         }
+    }
+}
+
+/** A small photo of the model for a list row; the drawn bus until (or unless) there's a photo. */
+@Composable
+internal fun ModelThumb(m: BusModel?, modifier: Modifier) {
+    val ctx = LocalContext.current
+    val photo by produceState<Photo?>(null, m?.id) { value = m?.let { Photos.forModel(ctx, it) } }
+    val bmp by produceState<ImageBitmap?>(null, photo?.url) { value = photo?.url?.let { Images.load(ctx, it)?.asImageBitmap() } }
+    Box(modifier.clip(RoundedCornerShape(10.dp))) {
+        val b = bmp
+        if (b != null) Image(b, m?.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        else BusGlyph(m, Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 6.dp))
     }
 }
 
