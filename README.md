@@ -199,8 +199,6 @@ with every train live on it.
   they meet and part without crossing. Stations whose platforms are on different
   tracks get a bar joining them, as on AT's map. Straight lines stand in until
   the timetable has loaded.
-- **Te Huia** runs from The Strand out along the eastern line and on to
-  Hamilton.
 - **Every train, live**, snapped onto its own line and pointing the way it's
   going, with an orange or red dot when it's running 2 or 5+ minutes late.
 - **Diagram, Satellite or Map.** Diagram is a quiet map (land, water, parks and

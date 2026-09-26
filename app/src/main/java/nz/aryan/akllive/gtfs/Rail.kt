@@ -124,8 +124,10 @@ object Rail {
     fun asks(stations: List<RailStation>, segs: List<RailSeg>, lineIds: List<String>): List<TrackAsk> {
         fun piece(line: String, a: Int, b: Int) = TrackAsk(line, stations[a].lon, stations[a].lat, stations[b].lon, stations[b].lat)
         val idx = { n: String -> stations.indexOfFirst { it.name == n } }
+        // Te Huia's run south only when its stations are on the map
+        val south = HUIA_SOUTH.map(idx)
         return segs.map { piece(lineIds[it.line], it.from, it.to) } +
-            HUIA_SOUTH.zipWithNext().map { (a, b) -> piece("HUIA", idx(a), idx(b)) }
+            if (south.any { it < 0 }) emptyList() else south.zipWithNext().map { (a, b) -> piece("HUIA", a, b) }
     }
 
     /** Each line as one route along its track ([cut]: the real track per ask, null for straight lines between stations). */
@@ -235,7 +237,7 @@ object Rail {
      * track. [shown]: the AT lines showing (Te Huia always is).
      */
     fun layout(stations: List<RailStation>, geo: RailGeo, shown: Set<Int>): RailDrawing {
-        val lines = geo.routes.filter { it.line == HUIA || it.line in shown }
+        val lines = geo.routes.filter { (it.line == HUIA || it.line in shown) && it.pts.size > 1 }
         // every little segment of track, in a grid, so finding the rails near a point is quick
         val cell = 0.0015
         val grid = HashMap<Long, MutableList<Long>>()
