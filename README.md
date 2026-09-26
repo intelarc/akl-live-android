@@ -80,7 +80,7 @@ Hillsborough, both directions (stop 8669 to Britomart, 8664 to Waikowhai).
 <p align="center">
   <img src="docs/screenshots/fleet.jpg" width="23%" alt="Fleet: the CRRC eT12 MAX and Enviro200, with photos from the AT Metro Wiki">
   <img src="docs/screenshots/fleet-2.jpg" width="23%" alt="Fleet: the CRRC eS12 MAX on the Inner Link and the Geely C13E">
-  <img src="docs/screenshots/model.jpg" width="23%" alt="A model's page: what it is, its fleet numbers, where they are now">
+  <img src="docs/screenshots/model.jpg" width="23%" alt="A model's page: the CRRC eT12 MAX, its specs, history and fleet numbers">
   <img src="docs/screenshots/dex.jpg" width="23%" alt="The fleet dex: models you've spotted, and the mysteries">
 </p>
 <p align="center"><sub>Fleet · More of the fleet · A model's page · Fleet dex</sub></p>
