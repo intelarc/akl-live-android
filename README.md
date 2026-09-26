@@ -78,16 +78,18 @@ Hillsborough, both directions (stop 8669 to Britomart, 8664 to Waikowhai).
 ## Bus spotting
 
 <p align="center">
-  <img src="docs/screenshots/fleet.jpg" width="30%" alt="Fleet: every bus model, with real photos">
-  <img src="docs/screenshots/model.jpg" width="30%" alt="A model's page: what it is, its fleet numbers, where they are now">
-  <img src="docs/screenshots/dex.jpg" width="30%" alt="The fleet dex: models you've spotted, and the mysteries">
+  <img src="docs/screenshots/fleet.jpg" width="23%" alt="Fleet: the CRRC eT12 MAX and Enviro200, with photos from the AT Metro Wiki">
+  <img src="docs/screenshots/fleet-2.jpg" width="23%" alt="Fleet: the CRRC eS12 MAX on the Inner Link and the Geely C13E">
+  <img src="docs/screenshots/model.jpg" width="23%" alt="A model's page: what it is, its fleet numbers, where they are now">
+  <img src="docs/screenshots/dex.jpg" width="23%" alt="The fleet dex: models you've spotted, and the mysteries">
 </p>
-<p align="center"><sub>Fleet · A model's page · Fleet dex</sub></p>
+<p align="center"><sub>Fleet · More of the fleet · A model's page · Fleet dex</sub></p>
 
 - **Fleet**: every bus model in Auckland with a real photo (from its
   [AT Metro Wiki](https://atmetro.fandom.com) page, credited on each), how
-  many are out right now, and who runs them. The photos are saved on the
-  phone, and the bus coming to your stop shows its photo too.
+  many are out right now, and who runs them. The photos download once in the
+  background and stay on the phone, so they show instantly (and offline)
+  after that. The bus coming to your stop shows its photo too.
 - **A model's page**: specs, a short history, the fleet numbers each operator
   uses, and a live map of every one of them on the road.
 - **Fleet dex**: every model that pulls up at your Home stops gets spotted and
