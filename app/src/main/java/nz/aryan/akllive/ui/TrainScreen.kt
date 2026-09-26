@@ -1,8 +1,5 @@
 package nz.aryan.akllive.ui
 
-import android.content.Context
-import androidx.compose.ui.platform.LocalContext
-import java.io.File
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -92,85 +89,18 @@ object TrainNet {
     /** straight lines between stations, until the timetable's in */
     val straight: RailGeo by lazy { Rail.build(stations, segs, null) }
     @Volatile private var real: Pair<String, RailGeo>? = null
-    @Volatile private var saved: RailGeo? = null
 
-    /**
-     * The lines along their real tracks, cut from today's timetable (once a day).
-     * With [ctx], the tracks are also kept on the phone, so the widget can draw
-     * them when the timetable isn't loaded.
-     */
-    fun geo(ctx: Context? = null): RailGeo {
-        val net = Timetable.today ?: return ctx?.let { fromDisk(it) } ?: straight
+    /** The lines along their real tracks, cut from today's timetable (once a day). */
+    fun geo(): RailGeo {
+        val net = Timetable.today ?: return straight
         real?.takeIf { it.first == net.date }?.let { return it.second }
         val g = try {
-            val cut = net.railTrack(Rail.asks(stations, segs, MapData.LINE_IDS.toList()))
-            ctx?.let { save(it, cut) }
-            Rail.build(stations, segs, cut)
+            Rail.build(stations, segs, net.railTrack(Rail.asks(stations, segs, MapData.LINE_IDS.toList())))
         } catch (e: Exception) {
             straight
         }
         real = net.date to g
         return g
-    }
-
-    private fun trackFile(ctx: Context) = File(ctx.filesDir, "rail-track.txt")
-
-    private fun save(ctx: Context, cut: List<List<Pt>?>) {
-        try {
-            val f = trackFile(ctx)
-            val part = File(f.path + ".part")
-            part.writeText(cut.joinToString("\n") { t -> t?.joinToString(";") { "${it.x},${it.y}" } ?: "-" })
-            part.renameTo(f)
-            saved = null
-        } catch (_: Exception) { }
-    }
-
-    private fun fromDisk(ctx: Context): RailGeo? {
-        saved?.let { return it }
-        return try {
-            val cut = trackFile(ctx).takeIf { it.exists() }?.readLines()?.map { l ->
-                if (l == "-" || l.isBlank()) null
-                else l.split(';').map { p -> p.split(',').let { Pt(it[0].toDouble(), it[1].toDouble()) } }
-            } ?: return null
-            Rail.build(stations, segs, cut).also { saved = it }
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    /** Each piece of line in its colour, ready for the map. */
-    fun lines(d: RailDrawing, dark: Boolean): List<MapLine> = d.pieces.map { p ->
-        MapLine(listOf(p.coords.map { it.y to it.x }), if (p.line == Rail.HUIA) huiaColor(dark) else Pal.line(p.line),
-                p.width.toFloat(), p.offset.toFloat(), z = true)
-    }
-
-    /** The station dots (junctions and ends a little bigger) and the bars joining a station's platforms. */
-    fun stopsAndLinks(d: RailDrawing, geo: RailGeo, shown: Set<Int>, sel: Int?, dark: Boolean): Pair<List<MapStop>, List<MapLine>> {
-        val stops = ArrayList<MapStop>()
-        val links = ArrayList<MapLine>()
-        stations.forEachIndexed { i, st ->
-            val on = (0..2).filter { it in shown && st.lines and (1 shl it) != 0 }
-            if (!st.extra && on.isEmpty()) return@forEachIndexed
-            val pts = d.markers[i].ifEmpty { listOf(Pt(st.lon, st.lat)) }
-            val r = when {
-                st.extra -> 1.1f
-                geo.junction[i] -> 1.6f
-                on.size > 1 -> 1.35f
-                geo.terminus[i] -> 1.2f
-                else -> 1f
-            }
-            val color = when {
-                pts.size > 1 || (!st.extra && (on.size > 1 || i == sel)) -> Pal.Navy
-                st.extra -> huiaColor(dark)
-                else -> Pal.line(on[0])
-            }
-            if (pts.size > 1) links += MapLine(listOf(pts.map { it.y to it.x }), color)
-            pts.forEachIndexed { k, p ->
-                stops += MapStop(p.y, p.x, color, big = i == sel, label = if (k == 0) st.name else null,
-                                 id = if (st.extra) null else i.toString(), r = r, rank = st.priority)
-            }
-        }
-        return stops to links
     }
 
     /** Every AT station on the lines showing, to frame the network. */
@@ -201,7 +131,6 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
     val now by rememberNow()
     val frameT = rememberFrameTime()
     val dark = LocalDark.current
-    val app = LocalContext.current.applicationContext
     var selTrain by remember { mutableStateOf<String?>(null) }
     var selStation by remember { mutableStateOf<Int?>(null) }
     var filter by rememberSaveable { mutableStateOf(listOf(0, 1, 2)) }
@@ -210,7 +139,7 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
 
     // straight lines between stations until the timetable has loaded, then the real track
     val geo by produceState(TrainNet.straight, tt.ready) {
-        if (tt.ready) value = withContext(Dispatchers.Default) { TrainNet.geo(app) }
+        if (tt.ready) value = withContext(Dispatchers.Default) { TrainNet.geo() }
     }
     val drawing by produceState<RailDrawing?>(null, geo, filter) {
         value = withContext(Dispatchers.Default) { Rail.layout(TrainNet.stations, geo, shown) }
@@ -243,9 +172,38 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
     }
 
     val d = drawing
-    val lines = remember(d, dark) { d?.let { TrainNet.lines(it, dark) } ?: emptyList() }
+    val lines = remember(d, dark) {
+        d?.pieces?.map { p ->
+            MapLine(listOf(p.coords.map { it.y to it.x }), if (p.line == Rail.HUIA) huiaColor(dark) else Pal.line(p.line),
+                    p.width.toFloat(), p.offset.toFloat(), z = true)
+        } ?: emptyList()
+    }
     val stopsAndLinks = remember(d, geo, selStation, dark) {
-        d?.let { TrainNet.stopsAndLinks(it, geo, shown, selStation, dark) } ?: (emptyList<MapStop>() to emptyList())
+        val stops = ArrayList<MapStop>()
+        val links = ArrayList<MapLine>()
+        if (d != null) TrainNet.stations.forEachIndexed { i, st ->
+            val on = (0..2).filter { it in shown && st.lines and (1 shl it) != 0 }
+            if (!st.extra && on.isEmpty()) return@forEachIndexed
+            val pts = d.markers[i].ifEmpty { listOf(Pt(st.lon, st.lat)) }
+            val r = when {
+                st.extra -> 1.1f
+                geo.junction[i] -> 1.6f
+                on.size > 1 -> 1.35f
+                geo.terminus[i] -> 1.2f
+                else -> 1f
+            }
+            val color = when {
+                pts.size > 1 || (!st.extra && (on.size > 1 || i == selStation)) -> Pal.Navy
+                st.extra -> huiaColor(dark)
+                else -> Pal.line(on[0])
+            }
+            if (pts.size > 1) links += MapLine(listOf(pts.map { it.y to it.x }), color)
+            pts.forEachIndexed { k, p ->
+                stops += MapStop(p.y, p.x, color, big = i == selStation, label = if (k == 0) st.name else null,
+                                 id = if (st.extra) null else i.toString(), r = r, rank = st.priority)
+            }
+        }
+        stops to links
     }
     // every train where its GPS says, put on its own line's track, pointing the way it's going
     val markers = remember(state.updated, d, filter, mode) {
