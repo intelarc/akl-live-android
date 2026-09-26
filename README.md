@@ -84,8 +84,10 @@ Hillsborough, both directions (stop 8669 to Britomart, 8664 to Waikowhai).
 </p>
 <p align="center"><sub>Fleet · A model's page · Fleet dex</sub></p>
 
-- **Fleet**: every bus model in Auckland with a real photo (from Wikimedia
-  Commons, credited on each), how many are out right now, and who runs them.
+- **Fleet**: every bus model in Auckland with a real photo (from its
+  [AT Metro Wiki](https://atmetro.fandom.com) page, credited on each), how
+  many are out right now, and who runs them. The photos are saved on the
+  phone, and the bus coming to your stop shows its photo too.
 - **A model's page**: specs, a short history, the fleet numbers each operator
   uses, and a live map of every one of them on the road.
 - **Fleet dex**: every model that pulls up at your Home stops gets spotted and

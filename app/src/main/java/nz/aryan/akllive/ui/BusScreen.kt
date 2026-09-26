@@ -310,7 +310,7 @@ fun VehicleInfo(v: Vehicle, big: Boolean = false) {
             .clickable { open(model?.id ?: UNKNOWN_MODEL) }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        BusGlyph(model, Modifier.size(width = if (big) 56.dp else 48.dp, height = 34.dp))
+        ModelThumb(model, Modifier.size(width = if (big) 96.dp else 84.dp, height = if (big) 64.dp else 56.dp))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             // "Enviro500" up top, "Alexander Dennis · NZ Bus · NB5028" under it, so nothing gets cut off

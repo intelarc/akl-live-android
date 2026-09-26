@@ -31,6 +31,7 @@ import nz.aryan.akllive.data.BusDeparture
 import nz.aryan.akllive.data.BusRepo
 import nz.aryan.akllive.data.BusTrip
 import nz.aryan.akllive.data.Fleet
+import nz.aryan.akllive.data.Photos
 import nz.aryan.akllive.data.FleetState
 import nz.aryan.akllive.data.LiveRepo
 import nz.aryan.akllive.data.Nz
@@ -158,6 +159,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     init {
         Fleet.load(app)
         Timetable.init(app)
+        // every model's photo onto the phone early, so a bus's photo is there the moment it shows up
+        viewModelScope.launch { delay(5_000); try { Photos.prefetch(app) } catch (_: Exception) { } }
         viewModelScope.launch { loop(30_000) { refreshBuses() } }
         viewModelScope.launch {
             while (true) {

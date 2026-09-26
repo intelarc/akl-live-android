@@ -15,6 +15,10 @@ class BusModel(
     /** label -> value, e.g. "Length" -> "12.7 m" */
     val specs: List<Pair<String, String>>,
     val about: String,
+    /** its page(s) on the AT Metro Wiki, best first */
+    val wiki: List<String> = emptyList(),
+    /** what a photo or page title has to mention to be this bus, e.g. "eT12" */
+    val key: String = "",
 ) {
     val doubleDeck: Boolean get() = decks >= 2
 
@@ -59,6 +63,8 @@ object Fleet {
                     axles = if (o.has("axles")) o.getInt("axles") else null,
                     specs = (0 until specs.length()).map { k -> specs.getJSONArray(k).let { it.getString(0) to it.getString(1) } },
                     about = o.optString("about"),
+                    wiki = o.optJSONArray("wiki")?.let { w -> (0 until w.length()).map { w.getString(it) } } ?: emptyList(),
+                    key = o.optString("key"),
                 )
             }
             val byId = ms.associateBy { it.id }
