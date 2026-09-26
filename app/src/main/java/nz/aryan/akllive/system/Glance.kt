@@ -100,6 +100,8 @@ class WidgetWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
     override suspend fun doWork(): Result {
         Glance.fetch(applicationContext)
         NextBusWidget().updateAll(applicationContext)
+        try { FavouritesWidget().updateAll(applicationContext) } catch (_: Exception) { }
+        try { TrainWidget().updateAll(applicationContext) } catch (_: Exception) { }
         return Result.success()
     }
 }

@@ -96,6 +96,13 @@ class NextBusWidget : GlanceAppWidget() {
                     Text(b?.let { mins(it.expected - now) } ?: "—",
                          style = TextStyle(color = GlanceTheme.colors.primary, fontWeight = FontWeight.Bold, fontSize = if (small) 16.sp else 20.sp))
                 }
+                // sized up: the ones after it too
+                if (LocalSize.current.height >= 230.dp) {
+                    val later = soon.drop(1).take(2)
+                    if (later.isNotEmpty()) Text("then " + later.joinToString(", ") { "${Nz.time(it.expected)} (${mins(it.expected - now)})" },
+                                                 GlanceModifier.padding(start = 4.dp, top = 2.dp), maxLines = 1,
+                                                 style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 11.sp))
+                }
             }
             if (!small) {
                 Spacer(GlanceModifier.defaultWeight())
