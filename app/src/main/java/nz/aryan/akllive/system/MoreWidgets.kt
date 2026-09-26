@@ -1,5 +1,6 @@
 package nz.aryan.akllive.system
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -21,6 +22,7 @@ import androidx.glance.LocalSize
 import androidx.glance.action.ActionParameters
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.ActionCallback
@@ -59,6 +61,7 @@ import nz.aryan.akllive.data.StopDeparture
 import nz.aryan.akllive.data.StopRepo
 import nz.aryan.akllive.data.Train
 import nz.aryan.akllive.data.TrainRepo
+import nz.aryan.akllive.ui.TrainArt
 
 private fun open(ctx: Context, link: String) =
     actionStartActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link), ctx, MainActivity::class.java))
@@ -162,34 +165,54 @@ class FavouritesWidgetReceiver : GlanceAppWidgetReceiver() {
 
 // ======================= the train map =======================
 
-/** The train network diagram with every train on it, live. */
+/** The train map, as the app draws it, with every train on it, live. */
 class TrainWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val trains = TrainsNow.get(context)
-        val map = drawTrains(trains ?: emptyList())
-        provideContent { GlanceTheme { Body(context, map, trains) } }
+        val (w, h) = widgetSize(context, id)
+        // the app's own Diagram view; the plain diagram only if the map can't be drawn
+        val map = try { TrainArt.render(context, trains ?: emptyList(), w, h, top = HEADER) } catch (e: Exception) { null }
+        provideContent { GlanceTheme { Body(context, map ?: drawTrains(trains ?: emptyList()), map != null, trains) } }
+    }
+
+    /** The widget's size on the home screen, in dp (portrait: its narrowest width and tallest height). */
+    private fun widgetSize(ctx: Context, id: GlanceId): Pair<Int, Int> = try {
+        val wid = GlanceAppWidgetManager(ctx).getAppWidgetId(id)
+        val o = AppWidgetManager.getInstance(ctx).getAppWidgetOptions(wid)
+        val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+        val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
+        if (w > 80 && h > 80) w to h else 320 to 260
+    } catch (e: Exception) {
+        320 to 260
     }
 
     @Composable
-    private fun Body(ctx: Context, map: Bitmap, trains: List<Train>?) {
-        Column(GlanceModifier.fillMaxSize().cornerRadius(24.dp).background(ColorProvider(Color(0xFF0B1220))).padding(10.dp)
-                   .clickable(open(ctx, "akllive://trains"))) {
-            Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    private fun Body(ctx: Context, map: Bitmap, fullBleed: Boolean, trains: List<Train>?) {
+        Box(GlanceModifier.fillMaxSize().cornerRadius(24.dp).background(ColorProvider(Color(0xFF172234)))
+                .clickable(open(ctx, "akllive://trains"))) {
+            if (fullBleed) Image(ImageProvider(map), "Train map", GlanceModifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            else Column(GlanceModifier.fillMaxSize().padding(start = 10.dp, end = 10.dp, bottom = 10.dp, top = HEADER.dp)) {
+                Image(ImageProvider(map), "Train map", GlanceModifier.fillMaxSize(), contentScale = ContentScale.Fit)
+            }
+            Row(GlanceModifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Ngā Tereina", GlanceModifier.defaultWeight(),
-                     style = TextStyle(color = ColorProvider(Color.White), fontWeight = FontWeight.Bold, fontSize = 14.sp))
+                     style = TextStyle(color = ColorProvider(Color.White), fontWeight = FontWeight.Bold, fontSize = 15.sp))
                 Text(when {
                     trains == null -> "Open the app first"
                     else -> "${trains.size} running · ${Nz.time(TrainsNow.at)}"
-                }, style = TextStyle(color = ColorProvider(Color(0xFFB9C2CF)), fontSize = 11.sp))
+                }, style = TextStyle(color = ColorProvider(Color(0xFFE6ECF5)), fontSize = 11.sp))
                 Spacer(GlanceModifier.width(8.dp))
                 Text("↻", GlanceModifier.clickable(actionRunCallback<RefreshMore>()),
                      style = TextStyle(color = ColorProvider(Color.White), fontWeight = FontWeight.Bold, fontSize = 18.sp))
             }
-            Spacer(GlanceModifier.height(4.dp))
-            Image(ImageProvider(map), "Train map", GlanceModifier.fillMaxSize(), contentScale = ContentScale.Fit)
         }
+    }
+
+    private companion object {
+        /** room for the header over the top of the map, dp */
+        const val HEADER = 40
     }
 }
 
