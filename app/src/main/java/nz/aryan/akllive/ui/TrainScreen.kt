@@ -82,10 +82,10 @@ import nz.aryan.akllive.data.TrainState
 import nz.aryan.akllive.data.TripDetail
 import nz.aryan.akllive.data.occupancyText
 
-/** The network's stations and segments, plus Te Huia's own stops, for the rail layout. */
+/** The network's stations and segments, for the rail layout: AT's lines only (no Te Huia on to Hamilton). */
 object TrainNet {
     val stations: List<RailStation> =
-        MapData.STATIONS.map { RailStation(it.name, it.lat, it.lon, it.lines, it.priority) } + Rail.HUIA_STOPS
+        MapData.STATIONS.map { RailStation(it.name, it.lat, it.lon, it.lines, it.priority) }
     val segs: List<RailSeg> = MapData.SEGS.map { RailSeg(it.line, it.from, it.to) }
     /** straight lines between stations, until the timetable's in */
     val straight: RailGeo by lazy { Rail.build(stations, segs, null) }
@@ -117,7 +117,7 @@ private fun bearing(a: Pt, b: Pt) = ((Math.toDegrees(atan2((b.x - a.x) * KX, b.y
 
 /**
  * Trains: Auckland's rail network drawn along the real tracks in AT's line
- * colours (lines side by side where they share rails, Te Huia on to Hamilton),
+ * colours (lines side by side where they share rails),
  * with every train live on its own line where its GPS puts it. Over a quiet
  * diagram map, satellite photos or a street map; tap a train or a station.
  */
@@ -378,7 +378,7 @@ private fun Overview(state: TrainState, now: Long) {
     Spacer(Modifier.height(10.dp))
     Text("Tap a train for where it's going, its speed and its next stops. Tap a station for live " +
          "departures from every platform. The lines follow the real tracks, side by side where they share rails, " +
-         "with every train where its GPS puts it, pointing the way it's heading. Te Huia runs on to Hamilton.",
+         "with every train where its GPS puts it, pointing the way it's heading.",
          style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
