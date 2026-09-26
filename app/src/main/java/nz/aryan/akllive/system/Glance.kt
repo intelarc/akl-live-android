@@ -1,7 +1,10 @@
 package nz.aryan.akllive.system
 
 import android.content.Context
+import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
+import androidx.work.NetworkType
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -91,8 +94,11 @@ object Glance {
 
     /** Refresh the widget every 15 minutes in the background (Android's shortest interval). */
     fun schedule(ctx: Context) {
-        val req = PeriodicWorkRequestBuilder<WidgetWorker>(15, TimeUnit.MINUTES).build()
-        WorkManager.getInstance(ctx).enqueueUniquePeriodicWork("next-bus-widget", ExistingPeriodicWorkPolicy.KEEP, req)
+        // run with the internet up: a job that needs it is let online even while the app's in the background
+        val req = PeriodicWorkRequestBuilder<WidgetWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .build()
+        WorkManager.getInstance(ctx).enqueueUniquePeriodicWork("next-bus-widget", ExistingPeriodicWorkPolicy.UPDATE, req)
     }
 }
 
@@ -100,8 +106,13 @@ class WidgetWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
     override suspend fun doWork(): Result {
         Glance.fetch(applicationContext)
         NextBusWidget().updateAll(applicationContext)
-        try { FavouritesWidget().updateAll(applicationContext) } catch (_: Exception) { }
-        try { TrainWidget().updateAll(applicationContext) } catch (_: Exception) { }
+        try {
+            // the trains only when there's a train widget to show them
+            if (GlanceAppWidgetManager(applicationContext).getGlanceIds(TrainWidget::class.java).isNotEmpty()) {
+                TrainsNow.get(applicationContext, fresh = true)
+                TrainWidget().updateAll(applicationContext)
+            }
+        } catch (_: Exception) { }
         return Result.success()
     }
 }
