@@ -157,8 +157,6 @@ object MapStyles {
     val QUIET_DARK = Quiet("#172234", "#0B1625", "#172A24", "#233049", "#1E2A40", "#2E3C57", "#1C283B", "#6C7B94", "#46709A")
 
     /** A quiet map for the train diagram: land, water, parks, faint roads and suburb names, so the lines stand out. */
-    fun diagramJson(dark: Boolean): String = diagram(dark)
-
     private fun diagram(dark: Boolean): String {
         val c = if (dark) QUIET_DARK else QUIET_LIGHT
         fun arr(vararg v: Any) = JSONArray().also { a -> v.forEach { a.put(it) } }
@@ -525,76 +523,61 @@ private fun byZoom(p: String) = Expression.interpolate(Expression.linear(), Expr
  */
 private fun drawLayers(s: Style, lines: List<MapLine>, links: List<MapLine>, stops: List<MapStop>, basemap: Basemap, dark: Boolean) {
     fun put(layer: Layer) = if (s.getLayer("crowd-dots") != null) s.addLayerBelow(layer, "crowd-dots") else s.addLayer(layer)
-    if (s.getSource("akl-lines") == null) {
-        for (id in listOf("akl-lines", "akl-links", "akl-stops")) s.addSource(GeoJsonSource(id))
-        aklLayers(basemap, dark).forEach { put(it) }
-    }
-    val (l, k, st) = aklData(lines, links, stops)
-    s.getSourceAs<GeoJsonSource>("akl-lines")?.setGeoJson(l)
-    s.getSourceAs<GeoJsonSource>("akl-links")?.setGeoJson(k)
-    s.getSourceAs<GeoJsonSource>("akl-stops")?.setGeoJson(st)
-}
-
-/** The route lines, platform bars, stop dots and names as map layers, bottom to top, fed by akl-lines, akl-links and akl-stops. */
-internal fun aklLayers(basemap: Basemap, dark: Boolean): List<Layer> {
-    val out = ArrayList<Layer>()
     val zoom = Expression.zoom()
-    val dg = basemap == Basemap.Diagram
-    val caseCol = when {
-        dg -> if (dark) MapStyles.QUIET_DARK.bg else MapStyles.QUIET_LIGHT.bg
-        basemap == Basemap.Streets && !dark -> "#FFFFFF"
-        else -> "#0B1628"
+    if (s.getSource("akl-lines") == null) {
+        val dg = basemap == Basemap.Diagram
+        val caseCol = when {
+            dg -> if (dark) MapStyles.QUIET_DARK.bg else MapStyles.QUIET_LIGHT.bg
+            basemap == Basemap.Streets && !dark -> "#FFFFFF"
+            else -> "#0B1628"
+        }
+        for (id in listOf("akl-lines", "akl-links", "akl-stops")) s.addSource(GeoJsonSource(id))
+        val round = arrayOf(PropertyFactory.lineCap(Property.LINE_CAP_ROUND), PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND))
+        put(LineLayer("akl-lines-case", "akl-lines").withProperties(*round,
+            PropertyFactory.lineColor(Expression.switchCase(Expression.toBool(Expression.get("z")), Expression.color(android.graphics.Color.parseColor(caseCol)),
+                                                            Expression.color(android.graphics.Color.parseColor("#0B1628")))),
+            PropertyFactory.lineOpacity(Expression.switchCase(Expression.toBool(Expression.get("z")), Expression.literal(if (dg) 1f else 0.8f), Expression.literal(0.55f))),
+            PropertyFactory.lineWidth(byZoom("cw")),
+            PropertyFactory.lineOffset(byZoom("o"))))
+        put(LineLayer("akl-lines", "akl-lines").withProperties(*round,
+            PropertyFactory.lineColor(Expression.toColor(Expression.get("c"))),
+            PropertyFactory.lineWidth(byZoom("w")),
+            PropertyFactory.lineOffset(byZoom("o"))))
+        put(LineLayer("akl-links-case", "akl-links").withProperties(*round,
+            PropertyFactory.lineColor(Expression.toColor(Expression.get("c"))),
+            PropertyFactory.lineWidth(Expression.interpolate(Expression.linear(), zoom,
+                Expression.stop(9, 6f), Expression.stop(12, 11.4f), Expression.stop(16, 19f)))))
+        put(LineLayer("akl-links", "akl-links").withProperties(*round,
+            PropertyFactory.lineColor(Color.White.toArgb()),
+            PropertyFactory.lineWidth(Expression.interpolate(Expression.linear(), zoom,
+                Expression.stop(9, 2.8f), Expression.stop(12, 6.2f), Expression.stop(16, 13.8f)))))
+        put(CircleLayer("akl-stops", "akl-stops").withProperties(
+            PropertyFactory.circleColor(Color.White.toArgb()),
+            PropertyFactory.circleStrokeColor(Expression.toColor(Expression.get("c"))),
+            PropertyFactory.circleRadius(byZoom("rad")),
+            PropertyFactory.circleStrokeWidth(Expression.interpolate(Expression.linear(), zoom,
+                Expression.stop(9, num("sw9")), Expression.stop(13, num("sw13"))))))
+        // names: the most important stations win the space, the rest appear as you zoom in
+        val darkLabels = basemap != Basemap.Satellite && dark
+        put(SymbolLayer("akl-stop-labels", "akl-stops").withProperties(
+            PropertyFactory.textField(Expression.step(zoom, Expression.toString(Expression.get("l0")),
+                Expression.stop(10.4, Expression.toString(Expression.get("l1"))), Expression.stop(11, Expression.toString(Expression.get("label"))))),
+            PropertyFactory.textFont(arrayOf("Noto Sans Bold")),
+            PropertyFactory.textSize(Expression.interpolate(Expression.linear(), zoom,
+                Expression.stop(10, num("ts10")), Expression.stop(14, num("ts14")))),
+            PropertyFactory.textVariableAnchor(arrayOf(Property.TEXT_ANCHOR_LEFT, Property.TEXT_ANCHOR_RIGHT, Property.TEXT_ANCHOR_TOP,
+                                                       Property.TEXT_ANCHOR_BOTTOM, Property.TEXT_ANCHOR_TOP_LEFT, Property.TEXT_ANCHOR_BOTTOM_RIGHT)),
+            PropertyFactory.textRadialOffset(0.95f),
+            PropertyFactory.textJustify(Property.TEXT_JUSTIFY_AUTO),
+            PropertyFactory.symbolSortKey(num("rank")),
+            PropertyFactory.textPadding(3f),
+            PropertyFactory.textMaxWidth(9f),
+            PropertyFactory.textColor(android.graphics.Color.parseColor(if (darkLabels) "#E6ECF5" else "#1A2744")),
+            PropertyFactory.textHaloColor(if (darkLabels) android.graphics.Color.parseColor(if (dg) MapStyles.QUIET_DARK.bg else "#0B1628")
+                                          else android.graphics.Color.argb(235, 255, 255, 255)),
+            PropertyFactory.textHaloWidth(2.2f)))
     }
-    val round = arrayOf(PropertyFactory.lineCap(Property.LINE_CAP_ROUND), PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND))
-    out += LineLayer("akl-lines-case", "akl-lines").withProperties(*round,
-        PropertyFactory.lineColor(Expression.switchCase(Expression.toBool(Expression.get("z")), Expression.color(android.graphics.Color.parseColor(caseCol)),
-                                                        Expression.color(android.graphics.Color.parseColor("#0B1628")))),
-        PropertyFactory.lineOpacity(Expression.switchCase(Expression.toBool(Expression.get("z")), Expression.literal(if (dg) 1f else 0.8f), Expression.literal(0.55f))),
-        PropertyFactory.lineWidth(byZoom("cw")),
-        PropertyFactory.lineOffset(byZoom("o")))
-    out += LineLayer("akl-lines", "akl-lines").withProperties(*round,
-        PropertyFactory.lineColor(Expression.toColor(Expression.get("c"))),
-        PropertyFactory.lineWidth(byZoom("w")),
-        PropertyFactory.lineOffset(byZoom("o")))
-    out += LineLayer("akl-links-case", "akl-links").withProperties(*round,
-        PropertyFactory.lineColor(Expression.toColor(Expression.get("c"))),
-        PropertyFactory.lineWidth(Expression.interpolate(Expression.linear(), zoom,
-            Expression.stop(9, 6f), Expression.stop(12, 11.4f), Expression.stop(16, 19f))))
-    out += LineLayer("akl-links", "akl-links").withProperties(*round,
-        PropertyFactory.lineColor(Color.White.toArgb()),
-        PropertyFactory.lineWidth(Expression.interpolate(Expression.linear(), zoom,
-            Expression.stop(9, 2.8f), Expression.stop(12, 6.2f), Expression.stop(16, 13.8f))))
-    out += CircleLayer("akl-stops", "akl-stops").withProperties(
-        PropertyFactory.circleColor(Color.White.toArgb()),
-        PropertyFactory.circleStrokeColor(Expression.toColor(Expression.get("c"))),
-        PropertyFactory.circleRadius(byZoom("rad")),
-        PropertyFactory.circleStrokeWidth(Expression.interpolate(Expression.linear(), zoom,
-            Expression.stop(9, num("sw9")), Expression.stop(13, num("sw13")))))
-    // names: the most important stations win the space, the rest appear as you zoom in
-    val darkLabels = basemap != Basemap.Satellite && dark
-    out += SymbolLayer("akl-stop-labels", "akl-stops").withProperties(
-        PropertyFactory.textField(Expression.step(zoom, Expression.toString(Expression.get("l0")),
-            Expression.stop(10.4, Expression.toString(Expression.get("l1"))), Expression.stop(11, Expression.toString(Expression.get("label"))))),
-        PropertyFactory.textFont(arrayOf("Noto Sans Bold")),
-        PropertyFactory.textSize(Expression.interpolate(Expression.linear(), zoom,
-            Expression.stop(10, num("ts10")), Expression.stop(14, num("ts14")))),
-        PropertyFactory.textVariableAnchor(arrayOf(Property.TEXT_ANCHOR_LEFT, Property.TEXT_ANCHOR_RIGHT, Property.TEXT_ANCHOR_TOP,
-                                                   Property.TEXT_ANCHOR_BOTTOM, Property.TEXT_ANCHOR_TOP_LEFT, Property.TEXT_ANCHOR_BOTTOM_RIGHT)),
-        PropertyFactory.textRadialOffset(0.95f),
-        PropertyFactory.textJustify(Property.TEXT_JUSTIFY_AUTO),
-        PropertyFactory.symbolSortKey(num("rank")),
-        PropertyFactory.textPadding(3f),
-        PropertyFactory.textMaxWidth(9f),
-        PropertyFactory.textColor(android.graphics.Color.parseColor(if (darkLabels) "#E6ECF5" else "#1A2744")),
-        PropertyFactory.textHaloColor(if (darkLabels) android.graphics.Color.parseColor(if (dg) MapStyles.QUIET_DARK.bg else "#0B1628")
-                                      else android.graphics.Color.argb(235, 255, 255, 255)),
-        PropertyFactory.textHaloWidth(2.2f))
-    return out
-}
-
-/** The features for akl-lines, akl-links and akl-stops. */
-internal fun aklData(lines: List<MapLine>, links: List<MapLine>, stops: List<MapStop>): Triple<FeatureCollection, FeatureCollection, FeatureCollection> {
-    val lineFc = FeatureCollection.fromFeatures(lines.map { l ->
+    s.getSourceAs<GeoJsonSource>("akl-lines")?.setGeoJson(FeatureCollection.fromFeatures(lines.map { l ->
         Feature.fromGeometry(MultiLineString.fromLngLats(l.parts.map { part -> part.map { Point.fromLngLat(it.second, it.first) } })).also { f ->
             val k9 = if (l.z) 0.6f else 1f
             val k16 = if (l.z) 1.9f else 1f
@@ -607,12 +590,12 @@ internal fun aklData(lines: List<MapLine>, links: List<MapLine>, stops: List<Map
                 f.addNumberProperty("o$k", l.offset * v)
             }
         }
-    })
-    val linkFc = FeatureCollection.fromFeatures(links.map { l ->
+    }))
+    s.getSourceAs<GeoJsonSource>("akl-links")?.setGeoJson(FeatureCollection.fromFeatures(links.map { l ->
         Feature.fromGeometry(MultiLineString.fromLngLats(l.parts.map { part -> part.map { Point.fromLngLat(it.second, it.first) } }))
             .also { it.addStringProperty("c", hex(l.color)) }
-    })
-    val stopFc = FeatureCollection.fromFeatures(stops.map { st ->
+    }))
+    s.getSourceAs<GeoJsonSource>("akl-stops")?.setGeoJson(FeatureCollection.fromFeatures(stops.map { st ->
         Feature.fromGeometry(Point.fromLngLat(st.lon, st.lat)).also { f ->
             val label = st.label ?: ""
             f.addStringProperty("c", hex(st.color))
@@ -628,8 +611,7 @@ internal fun aklData(lines: List<MapLine>, links: List<MapLine>, stops: List<Map
             f.addNumberProperty("ts10", if (st.rank <= 0) 12f else 11f)
             f.addNumberProperty("ts14", if (st.rank <= 0) 14f else 12.5f)
         }
-    })
-    return Triple(lineFc, linkFc, stopFc)
+    }))
 }
 
 /** The crowd's source and layers: a dot per vehicle, a heading arrow, and the route once zoomed in. */
