@@ -3,6 +3,12 @@
     <string name="tile_label">Next bus</string>
     <string name="widget_label">Next bus</string>
     <string name="widget_desc">Your next bus each way, live</string>
+    <string name="search_widget_label">Search</string>
+    <string name="search_widget_desc">Search stops, places and routes, or plan a trip</string>
+    <string name="fav_widget_label">Favourite stops</string>
+    <string name="fav_widget_desc">Your favourite stops and their next departures</string>
+    <string name="train_widget_label">Train map</string>
+    <string name="train_widget_desc">Every train on the network, live on the map</string>
     <string name="sc_plan">Directions</string>
     <string name="sc_plan_long">Plan a trip</string>
     <string name="sc_live">Live map</string>

@@ -73,5 +73,34 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/next_bus_widget" />
         </receiver>
+        <receiver
+            android:name=".system.SearchWidgetReceiver"
+            android:exported="true"
+            android:label="@string/search_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/search_widget" />
+        </receiver>
+
+        <receiver
+            android:name=".system.FavouritesWidgetReceiver"
+            android:exported="true"
+            android:label="@string/fav_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/favourites_widget" />
+        </receiver>
+
+        <receiver
+            android:name=".system.TrainWidgetReceiver"
+            android:exported="true"
+            android:label="@string/train_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/train_widget" />
+        </receiver>
     </application>
 </manifest>

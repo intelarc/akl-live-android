@@ -80,6 +80,18 @@ import androidx.compose.material3.TextButton
 import nz.aryan.akllive.system.Phase
 import nz.aryan.akllive.system.TripProgress
 import nz.aryan.akllive.system.TripTracker
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberStandardBottomSheetState
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.launch
 import nz.aryan.akllive.AppViewModel
 import nz.aryan.akllive.Place
 import nz.aryan.akllive.data.BusDeparture
@@ -227,7 +239,11 @@ private fun JourneyView(vm: AppViewModel, it: Itinerary, from: Place?, to: Place
         val pts = it.legs.flatMap { l -> if (l is RideLeg) l.shape else listOf((l as WalkLeg).fromLat to l.fromLon, l.toLat to l.toLon) }
         if (pts.size > 300) pts.filterIndexed { i, _ -> i % 5 == 0 } + listOf(pts.last()) else pts
     }
-    val sheet = rememberBottomSheetScaffoldState()
+    // the sheet can tuck away (swipe it down) to leave the map and a slim bar
+    val sheetState = rememberStandardBottomSheetState(skipHiddenState = false)
+    val sheet = rememberBottomSheetScaffoldState(bottomSheetState = sheetState)
+    val scope = rememberCoroutineScope()
+    val tucked = sheetState.targetValue == SheetValue.Hidden && sheetState.currentValue == SheetValue.Hidden
 
     BottomSheetScaffold(
         scaffoldState = sheet,
@@ -261,6 +277,39 @@ private fun JourneyView(vm: AppViewModel, it: Itinerary, from: Place?, to: Place
                 FilledTonalIconButton(onClick = back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                 Spacer(Modifier.weight(1f))
                 BasemapToggle(basemap, vm::setBasemap)
+            }
+            // tucked away: the gist, and a tap or swipe up to bring it all back
+            AnimatedVisibility(tucked, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp),
+                               enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
+                val leave = leaveAt(it, live)
+                val end = it.end + (it.rides.lastOrNull()?.let { r -> live[r.tripId]?.delay } ?: 0)
+                var drag by remember { mutableFloatStateOf(0f) }
+                Surface(onClick = { scope.launch { sheetState.partialExpand() } }, shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp,
+                        modifier = Modifier.fillMaxWidth().pointerInput(Unit) {
+                            detectVerticalDragGestures(onDragStart = { drag = 0f },
+                                                       onDragEnd = { if (drag < -30) scope.launch { sheetState.partialExpand() } }) { _, dy -> drag += dy }
+                        }) {
+                    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp)) {
+                        Box(Modifier.align(Alignment.CenterHorizontally).size(width = 36.dp, height = 4.dp)
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(50)))
+                        Spacer(Modifier.height(8.dp))
+                        if (tracking) {
+                            Text(trip.headline, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1,
+                                 overflow = TextOverflow.Ellipsis)
+                            Text(trip.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        } else Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("${Nz.time(leave)} – ${Nz.time(end)}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Text(if (leave - now > 60) "Leave in ${countdown(leave - now)}" else "to ${to?.name ?: "…"}",
+                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            }
+                            Text(durationText(end - leave), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black,
+                                 color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
             }
         }
     }
