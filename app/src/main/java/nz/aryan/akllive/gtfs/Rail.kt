@@ -104,6 +104,8 @@ object Rail {
     private const val IN_M = 25.0            // rails this close and parallel are drawn as one track...
     private const val OUT_M = 40.0           // ...until they're this far apart
     private const val STEP_M = 20.0
+    private const val EASE_M = 200.0           // lines slide between slots over this far either side...
+    private const val EASE_STEPS = 10          // ...in this many steps
 
     val HUIA_STOPS = listOf(
         RailStation("The Strand", -36.84853, 174.77934, 1 shl HUIA, 1, true),
@@ -386,6 +388,12 @@ object Rail {
                 val run = at.subList(a, min(at.size, b + 2))
                 if (run.size > 1) out += RailPiece(g.line, ArrayList(run), w[slot], if (same) off else -off)
             }
+            // where lines meet and part, slide across between slots instead of stepping
+            if (out.size - first > 1) {
+                val eased = ease(out.subList(first, out.size).toList())
+                while (out.size > first) out.removeAt(out.size - 1)
+                out += eased
+            }
             if (g.line != HUIA) track[g.line] += DoubleArray(at.size) { at[it].x * KX } to DoubleArray(at.size) { at[it].y }
             for ((st, k) in g.stops) ends[st] += g.line to at[k]
             if (out.size > first && g.stops.isNotEmpty()) {
@@ -406,6 +414,65 @@ object Rail {
             if (best != null && bd > 2) { if (t.start) c.add(0, best) else c.add(best) }
         }
         return RailDrawing(out, markers, track)
+    }
+
+    /**
+     * A line's pieces with the change in slot (offset and width) between one and the next
+     * spread over [EASE_M] either side, in [EASE_STEPS] little pieces, so a line glides
+     * across to its new place beside the others where they meet or part.
+     */
+    private fun ease(pieces: List<RailPiece>): List<RailPiece> {
+        val out = ArrayList<RailPiece>()
+        var cur = pieces[0]
+        for (i in 1 until pieces.size) {
+            val next = pieces[i]
+            val joined = metres(cur.coords.last(), next.coords.first()) < 1.0
+            val change = abs(cur.offset - next.offset) > 0.05 || abs(cur.width - next.width) > 0.05
+            val l = minOf(EASE_M, length(cur.coords) * 0.45, length(next.coords) * 0.45)
+            if (!joined || !change || l < 5) { out += cur; cur = next; continue }
+            val (keepA, tailA) = cut(cur.coords, length(cur.coords) - l)
+            val (headB, keepB) = cut(next.coords, l)
+            if (keepA.size > 1) out += RailPiece(cur.line, keepA, cur.width, cur.offset)
+            var rest: List<Pt> = tailA + headB.drop(1)
+            val step = length(rest) / EASE_STEPS
+            for (j in 0 until EASE_STEPS) {
+                val t = (j + 0.5) / EASE_STEPS
+                val split: Pair<List<Pt>, List<Pt>> = if (j == EASE_STEPS - 1) rest to emptyList() else cut(rest, step)
+                val (part, after) = split
+                rest = after
+                if (part.size > 1) out += RailPiece(cur.line, ArrayList(part), cur.width + (next.width - cur.width) * t,
+                                                    cur.offset + (next.offset - cur.offset) * t)
+            }
+            cur = RailPiece(next.line, ArrayList(keepB), next.width, next.offset)
+        }
+        out += cur
+        return out
+    }
+
+    private fun length(pts: List<Pt>): Double {
+        var d = 0.0
+        for (i in 1 until pts.size) d += metres(pts[i - 1], pts[i])
+        return d
+    }
+
+    /** A line cut [at] metres along it: the part before and the part after, both with the cut point. */
+    private fun cut(pts: List<Pt>, at: Double): Pair<MutableList<Pt>, MutableList<Pt>> {
+        val before = arrayListOf(pts[0])
+        var d = 0.0
+        for (i in 1 until pts.size) {
+            val seg = metres(pts[i - 1], pts[i])
+            if (d + seg >= at) {
+                val t = if (seg > 0) ((at - d) / seg).coerceIn(0.0, 1.0) else 0.0
+                val c = Pt(pts[i - 1].x + (pts[i].x - pts[i - 1].x) * t, pts[i - 1].y + (pts[i].y - pts[i - 1].y) * t)
+                before += c
+                val after = arrayListOf(c)
+                for (j in i until pts.size) after += pts[j]
+                return before to after
+            }
+            d += seg
+            before += pts[i]
+        }
+        return before to arrayListOf(pts.last())
     }
 
     /**

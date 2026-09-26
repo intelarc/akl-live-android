@@ -295,7 +295,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun refreshTrains() {
         try {
             val fresh = trainRepo.poll()
-            nz.aryan.akllive.system.TrainsNow.save(getApplication(), fresh)
             val old = _trains.value
             val elapsed = SystemClock.elapsedRealtime()
             // glide from wherever each marker is right now

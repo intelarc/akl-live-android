@@ -64,6 +64,7 @@ import nz.aryan.akllive.gtfs.RailStation
 import nz.aryan.akllive.gtfs.Timetable
 import nz.aryan.akllive.gtfs.metres
 import nz.aryan.akllive.gtfs.railTrack
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -199,8 +200,16 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
             }
             if (pts.size > 1) links += MapLine(listOf(pts.map { it.y to it.x }), color)
             pts.forEachIndexed { k, p ->
-                stops += MapStop(p.y, p.x, color, big = i == selStation, label = if (k == 0) st.name else null,
+                stops += MapStop(p.y, p.x, color, big = i == selStation, label = if (k == 0 && pts.size == 1) st.name else null,
                                  id = if (st.extra) null else i.toString(), r = r, rank = st.priority)
+            }
+            // platforms on different tracks: the name goes beside the bar joining them, off to the side it runs past
+            if (pts.size > 1) {
+                val a = pts.first()
+                val b = pts.last()
+                val across = abs((b.x - a.x) * cos(Math.toRadians(a.y))) > abs(b.y - a.y)
+                stops += MapStop(pts.sumOf { it.y } / pts.size, pts.sumOf { it.x } / pts.size, color, label = st.name,
+                                 r = r, rank = st.priority, dot = false, side = if (across) 2 else 1)
             }
         }
         stops to links
@@ -252,13 +261,13 @@ fun TrainScreen(vm: AppViewModel, modifier: Modifier) {
             Column(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 6.dp)) {
                 Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Ngā Tereina", color = Color.White, fontWeight = FontWeight.Black, fontSize = 24.sp,
+                        Text("Ngā Tereina", color = Color.White, fontWeight = FontWeight.Black, fontSize = 22.sp, maxLines = 1, softWrap = false,
                              modifier = Modifier.clickable(interactionSource = null, indication = null) {
                                  titleTaps++
                                  if (titleTaps % 5 == 0) vm.toast.tryEmit(if (titleTaps >= 15) "All aboard the tap train 🚂🚃🚃🚃" else "Choo choo! 🚂")
                              })
                         Text(state.error?.takeIf { state.trains.isEmpty() }
-                                 ?: "${state.trains.size} train${if (state.trains.size == 1) "" else "s"} running · ${liveAgo(state.updated, now)}",
+                                 ?: "${state.trains.size} running · ${liveAgo(state.updated, now)}",
                              color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     TrainViewToggle(mode, Modifier) { b -> vm.update { it.copy(trainView = b) } }
@@ -311,8 +320,8 @@ private fun TrainViewToggle(mode: Basemap, modifier: Modifier, set: (Basemap) ->
         for ((b, label) in listOf(Basemap.Diagram to "Diagram", Basemap.Satellite to "Satellite", Basemap.Streets to "Map")) {
             val on = mode == b
             Box(Modifier.clip(RoundedCornerShape(50)).background(if (on) Color.White else Color.Transparent)
-                    .clickable { set(b) }.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on) Pal.Navy else Color.White)
+                    .clickable { set(b) }.padding(horizontal = 9.dp, vertical = 6.dp)) {
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (on) Pal.Navy else Color.White, maxLines = 1)
             }
         }
     }
@@ -321,9 +330,14 @@ private fun TrainViewToggle(mode: Basemap, modifier: Modifier, set: (Basemap) ->
 @Composable
 private fun Overview(state: TrainState, now: Long) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("${state.trains.size} trains running", style = MaterialTheme.typography.titleLarge,
+        Text("${state.trains.size} train${if (state.trains.size == 1) "" else "s"} running", style = MaterialTheme.typography.titleLarge,
              fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         LiveBadge(state.updated, now)
+    }
+    if (state.trains.isEmpty() && state.updated > 0 && state.error == null) {
+        Text("Nothing on the tracks right now. Trains run from about 5 am until around midnight.",
+             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+             modifier = Modifier.padding(top = 4.dp))
     }
     Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
