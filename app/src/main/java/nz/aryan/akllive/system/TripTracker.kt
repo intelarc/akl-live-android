@@ -69,11 +69,14 @@ object TripTracker {
         _state.value = TripProgress(it, from, to, 0, if (it.legs.firstOrNull() is RideLeg) Phase.Waiting else Phase.Walking,
                                     headline = "Finding you…", detail = "Waiting for a GPS fix", updated = Nz.nowSec())
         ContextCompat.startForegroundService(ctx, Intent(ctx, TripService::class.java))
+        TripWidget.nudge(ctx, force = true)
     }
 
     fun stop(ctx: Context) {
-        ctx.startService(Intent(ctx, TripService::class.java).setAction(TripService.ACTION_STOP))
+        // the service may already be gone (the trip finished on its own)
+        try { ctx.startService(Intent(ctx, TripService::class.java).setAction(TripService.ACTION_STOP)) } catch (_: Exception) { }
         _state.value = TripProgress()
+        TripWidget.nudge(ctx, force = true)
     }
 
     internal fun clear() { _state.value = TripProgress() }

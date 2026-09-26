@@ -68,6 +68,7 @@ class TripService : Service(), LocationListener {
         } catch (e: Exception) {
             // location isn't allowed: nothing to follow you with
             TripTracker.clear()
+            TripWidget.nudge(this, force = true)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -104,6 +105,7 @@ class TripService : Service(), LocationListener {
         if (gps) lastGps = t else if (t - lastGps < 15_000) return
         val events = TripTracker.onFix(loc.latitude, loc.longitude, if (loc.hasSpeed()) loc.speed else null, loc.accuracy)
         post(build(), NID)
+        TripWidget.nudge(this, force = events.isNotEmpty())
         events.forEach { alert(it) }
         if (events.any { it is TripEvent.Arrived }) scope.launch { delay(90_000); TripTracker.clear(); finish() }
     }
@@ -124,6 +126,7 @@ class TripService : Service(), LocationListener {
             val ids = TripTracker.watching()
             if (ids.isNotEmpty()) try { TripTracker.setLive(liveFor(api, ids)) } catch (_: Exception) { }
             post(build(), NID)
+            TripWidget.nudge(this)
             delay(15_000)
         }
     }
@@ -192,6 +195,7 @@ class TripService : Service(), LocationListener {
 
     private fun finish() {
         poll?.cancel()
+        TripWidget.nudge(this, force = true)
         try { getSystemService(LocationManager::class.java)?.removeUpdates(this) } catch (_: Exception) { }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()

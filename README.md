@@ -140,7 +140,14 @@ journeys with 1, 2, 3 or more rides, walking between nearby stops for changes.
   many stops away it is, its model and how full it is, updated every 20 s. It
   buzzes when it's time to leave (your walk plus a lead time you choose), and
   stops itself once the bus has been.
-- **Home screen widget**: your next bus each way, refreshed in the background.
+- **Home screen widgets**:
+  - **Next bus**: your next bus each way, refreshed in the background.
+  - **Your trip**: once you start a trip, where you're up to (walk to the
+    stop, the bus is 2 stops away, 4 stops to go), the rides ahead, when you'll
+    get there, and End.
+  - **Train map**: the Trains tab's map at the widget's size, with every train
+    on it.
+  - **Search**: a search bar that opens straight into search.
 - **Quick settings tile**: "27H · 6 min" in the notification shade.
 - **App shortcuts**: long-press the icon for Directions, Live, Trains, Search
   and your favourite stops.

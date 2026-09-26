@@ -48,6 +48,13 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import androidx.work.Constraints
+import androidx.work.CoroutineWorker
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -57,8 +64,6 @@ import nz.aryan.akllive.R
 import nz.aryan.akllive.data.AtApi
 import nz.aryan.akllive.data.MapData
 import nz.aryan.akllive.data.Nz
-import nz.aryan.akllive.data.StopDeparture
-import nz.aryan.akllive.data.StopRepo
 import nz.aryan.akllive.data.Train
 import nz.aryan.akllive.data.TrainRepo
 import nz.aryan.akllive.ui.TrainArt
@@ -68,7 +73,7 @@ private fun open(ctx: Context, link: String) =
 
 // ======================= search =======================
 
-/** A search bar on the home screen: straight into search, or plan a trip. */
+/** A search bar on the home screen, like Google's: tap it and you're typing in the app's search. */
 class SearchWidget : GlanceAppWidget() {
     override val sizeMode = SizeMode.Exact
 
@@ -78,21 +83,18 @@ class SearchWidget : GlanceAppWidget() {
 
     @Composable
     private fun Body(ctx: Context) {
-        val wide = LocalSize.current.width > 250.dp
-        Row(GlanceModifier.fillMaxSize().cornerRadius(28.dp).background(GlanceTheme.colors.widgetBackground).padding(6.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Row(GlanceModifier.defaultWeight().height(44.dp).cornerRadius(22.dp).background(GlanceTheme.colors.secondaryContainer)
-                    .padding(horizontal = 14.dp).clickable(open(ctx, "akllive://search")),
+        val size = LocalSize.current
+        val wide = size.width > 220.dp
+        val h = minOf(size.height - 8.dp, 56.dp)
+        Box(GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Row(GlanceModifier.fillMaxWidth().height(h).cornerRadius(28.dp).background(GlanceTheme.colors.surface)
+                    .padding(start = 10.dp, end = 16.dp).clickable(open(ctx, "akllive://search")),
                 verticalAlignment = Alignment.CenterVertically) {
-                Image(ImageProvider(R.drawable.ic_sc_search), null, GlanceModifier.size(22.dp))
-                Spacer(GlanceModifier.width(10.dp))
-                Text(if (wide) "Stops, places, routes, buses…" else "Search", maxLines = 1,
-                     style = TextStyle(color = GlanceTheme.colors.onSecondaryContainer, fontSize = 14.sp))
-            }
-            Spacer(GlanceModifier.width(6.dp))
-            Box(GlanceModifier.size(44.dp).cornerRadius(22.dp).background(GlanceTheme.colors.primary).clickable(open(ctx, "akllive://plan")),
-                contentAlignment = Alignment.Center) {
-                Image(ImageProvider(R.drawable.ic_sc_plan), "Plan a trip", GlanceModifier.size(26.dp))
+                Image(ImageProvider(R.drawable.ic_widget_logo), "AKL Live", GlanceModifier.size(30.dp))
+                Spacer(GlanceModifier.width(12.dp))
+                Text(if (wide) "Search stops, places, routes" else "Search", GlanceModifier.defaultWeight(), maxLines = 1,
+                     style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 16.sp))
+                Image(ImageProvider(R.drawable.ic_widget_glass), null, GlanceModifier.size(22.dp))
             }
         }
     }
@@ -100,67 +102,6 @@ class SearchWidget : GlanceAppWidget() {
 
 class SearchWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = SearchWidget()
-}
-
-// ======================= favourite stops =======================
-
-/** Your favourite stops, each with its next departures. */
-class FavouritesWidget : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Exact
-
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val s = Prefs(context).load()
-        val favs = s.favs.take(3)
-        val repo = StopRepo(AtApi { s.apiKey })
-        val deps = if (s.apiKey.isBlank()) emptyMap() else favs.associate { f ->
-            f.id to (try { repo.departures(mapOf(f.id to "")) } catch (_: Exception) { null })
-        }
-        provideContent { GlanceTheme { Body(context, favs.map { it.id to it.title }, deps, s.apiKey.isBlank()) } }
-    }
-
-    @Composable
-    private fun Body(ctx: Context, favs: List<Pair<String, String>>, deps: Map<String, List<StopDeparture>?>, noKey: Boolean) {
-        val now = Nz.nowSec()
-        val rows = if (LocalSize.current.height < 170.dp) 1 else 2
-        Column(GlanceModifier.fillMaxSize().cornerRadius(24.dp).background(GlanceTheme.colors.widgetBackground).padding(14.dp)
-                   .clickable(open(ctx, "akllive://home"))) {
-            Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("★  Favourite stops", GlanceModifier.defaultWeight(),
-                     style = TextStyle(color = GlanceTheme.colors.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp))
-                Text("↻", GlanceModifier.clickable(actionRunCallback<RefreshMore>()),
-                     style = TextStyle(color = GlanceTheme.colors.primary, fontWeight = FontWeight.Bold, fontSize = 18.sp))
-            }
-            when {
-                noKey -> Text("Open AKL Live and add your AT key", style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 13.sp))
-                favs.isEmpty() -> Text("Star a stop in the app and it shows up here", style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 13.sp))
-                else -> for ((id, title) in favs) {
-                    Spacer(GlanceModifier.height(8.dp))
-                    Column(GlanceModifier.fillMaxWidth().clickable(open(ctx, "akllive://stop/" + Uri.encode(id)))) {
-                        Text(title, maxLines = 1, style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Medium))
-                        val list = deps[id]
-                        if (list.isNullOrEmpty()) Text(if (list == null) "Couldn't load" else "Nothing for a while",
-                                                       style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp))
-                        else list.filter { !it.cancelled }.take(rows).forEach { d ->
-                            Row(GlanceModifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Box(GlanceModifier.cornerRadius(8.dp).background(GlanceTheme.colors.primary).padding(horizontal = 6.dp, vertical = 1.dp)) {
-                                    Text(d.route, style = TextStyle(color = GlanceTheme.colors.onPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp))
-                                }
-                                Spacer(GlanceModifier.width(6.dp))
-                                Text(d.headsign, GlanceModifier.defaultWeight(), maxLines = 1,
-                                     style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 12.sp))
-                                Text(mins(d.expected - now), style = TextStyle(color = GlanceTheme.colors.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-class FavouritesWidgetReceiver : GlanceAppWidgetReceiver() {
-    override val glanceAppWidget: GlanceAppWidget = FavouritesWidget()
-    override fun onEnabled(context: Context) { super.onEnabled(context); Glance.schedule(context) }
 }
 
 // ======================= the train map =======================
@@ -200,7 +141,7 @@ class TrainWidget : GlanceAppWidget() {
                 Text("Ngā Tereina", GlanceModifier.defaultWeight(),
                      style = TextStyle(color = ColorProvider(Color.White), fontWeight = FontWeight.Bold, fontSize = 15.sp))
                 Text(when {
-                    trains == null -> "Open the app first"
+                    trains == null -> "Tap ↻ for trains"
                     else -> "${trains.size} running · ${Nz.time(TrainsNow.at)}"
                 }, style = TextStyle(color = ColorProvider(Color(0xFFE6ECF5)), fontSize = 11.sp))
                 Spacer(GlanceModifier.width(8.dp))
@@ -242,8 +183,26 @@ object TrainsNow {
         }
     }
 
-    suspend fun get(ctx: Context): List<Train>? {
-        if (list != null && Nz.nowSec() - at < 60) return list
+    /** The app's been opened: a good time to draw the widget's map, with the internet sure to be there. */
+    fun appOpened(ctx: Context) {
+        val now = System.currentTimeMillis()
+        if (now - lastOpen < 10 * 60_000) return
+        lastOpen = now
+        val app = ctx.applicationContext
+        CoroutineScope(Dispatchers.Default).launch { try { TrainWidget().updateAll(app) } catch (_: Exception) { } }
+    }
+    private var lastOpen = 0L
+
+    /** Fetch and redraw in a job that waits for the internet. */
+    fun refresh(ctx: Context) {
+        val req = OneTimeWorkRequestBuilder<TrainWidgetWorker>()
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .build()
+        WorkManager.getInstance(ctx).enqueueUniqueWork("train-widget-refresh", ExistingWorkPolicy.REPLACE, req)
+    }
+
+    suspend fun get(ctx: Context, fresh: Boolean = false): List<Train>? {
+        if (!fresh && list != null && Nz.nowSec() - at < 60) return list
         val s = Prefs(ctx).load()
         if (s.apiKey.isBlank()) return list
         val r = repo ?: TrainRepo(AtApi { Prefs(ctx).load().apiKey }).also { repo = it }
@@ -300,16 +259,18 @@ private fun drawTrains(trains: List<Train>): Bitmap {
     return bmp
 }
 
-private fun mins(secs: Long) = when {
-    secs < 45 -> "Due"
-    secs < 3600 -> "${secs / 60} min"
-    else -> "${secs / 3600} h"
-}
-
-/** ↻ on the favourites or train widget. */
+/** ↻ on the train widget: fetched in a job, which gets the internet even when the app's in the background. */
 class RefreshMore : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        FavouritesWidget().updateAll(context)
-        TrainWidget().updateAll(context)
+        TrainsNow.refresh(context)
+    }
+}
+
+/** Fetches the trains and redraws the train widget. */
+class TrainWidgetWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
+    override suspend fun doWork(): Result {
+        TrainsNow.get(applicationContext, fresh = true)
+        TrainWidget().updateAll(applicationContext)
+        return Result.success()
     }
 }
