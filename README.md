@@ -145,7 +145,6 @@ journeys with 1, 2, 3 or more rides, walking between nearby stops for changes.
   - **Your trip**: once you start a trip, where you're up to (walk to the
     stop, the bus is 2 stops away, 4 stops to go), the rides ahead, when you'll
     get there, and End.
-  - **Train map**: the train diagram with every train on it, live.
   - **Search**: a search bar that opens straight into search.
 - **Quick settings tile**: "27H · 6 min" in the notification shade.
 - **App shortcuts**: long-press the icon for Directions, Live, Trains, Search

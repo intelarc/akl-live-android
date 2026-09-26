@@ -1,7 +1,6 @@
 package nz.aryan.akllive.system
 
 import android.content.Context
-import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.NetworkType
@@ -106,13 +105,6 @@ class WidgetWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
     override suspend fun doWork(): Result {
         Glance.fetch(applicationContext)
         NextBusWidget().updateAll(applicationContext)
-        try {
-            // the trains only when there's a train widget to show them
-            if (GlanceAppWidgetManager(applicationContext).getGlanceIds(TrainWidget::class.java).isNotEmpty()) {
-                TrainsNow.get(applicationContext, fresh = true)
-                TrainWidget().updateAll(applicationContext)
-            }
-        } catch (_: Exception) { }
         return Result.success()
     }
 }

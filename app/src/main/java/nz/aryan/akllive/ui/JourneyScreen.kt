@@ -41,6 +41,11 @@ import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -239,35 +244,37 @@ private fun JourneyView(vm: AppViewModel, it: Itinerary, from: Place?, to: Place
         val pts = it.legs.flatMap { l -> if (l is RideLeg) l.shape else listOf((l as WalkLeg).fromLat to l.fromLon, l.toLat to l.toLon) }
         if (pts.size > 300) pts.filterIndexed { i, _ -> i % 5 == 0 } + listOf(pts.last()) else pts
     }
-    // the sheet can tuck away (swipe it down) to leave the map and a slim bar
-    val sheetState = rememberStandardBottomSheetState(skipHiddenState = false)
+    // one sheet that opens to half the screen and slides down to a slim strip (its top) to leave the map
+    val sheetState = rememberStandardBottomSheetState(initialValue = SheetValue.Expanded, skipHiddenState = true)
     val sheet = rememberBottomSheetScaffoldState(bottomSheetState = sheetState)
-    val scope = rememberCoroutineScope()
-    val tucked = sheetState.targetValue == SheetValue.Hidden && sheetState.currentValue == SheetValue.Hidden
+    val open = (LocalConfiguration.current.screenHeightDp * 0.52f).dp
+    val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     BottomSheetScaffold(
         scaffoldState = sheet,
-        sheetPeekHeight = 360.dp,
+        sheetPeekHeight = 124.dp + navInset,
         sheetContent = {
-            Steps(it, from, to, live, walks, now, if (tracking) trip else null,
-                  onStart = startTrip, onEnd = { TripTracker.stop(ctx) },
-                  onLocate = { trip.lat?.let { la -> focus = MapFocus(la, trip.lon!!, 16.0) } },
-                  onFocus = { lat, lon -> focus = MapFocus(lat, lon, 16.0) },
-                  onStop = { id -> nav.go("stop/${Uri.encode(id)}") },
-                  onTrack = { r -> notify { vm.track(r.board(), r.departure(live[r.tripId])) } },
-                  onShare = {
-                      val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-                          .putExtra(Intent.EXTRA_TEXT, describe(it, from, to, live))
-                      try { ctx.startActivity(Intent.createChooser(send, "Share the journey")) } catch (_: Exception) { }
-                  },
-                  onCalendar = {
-                      val i = Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI)
-                          .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, leaveAt(it, live) * 1000)
-                          .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, it.end * 1000)
-                          .putExtra(CalendarContract.Events.TITLE, "Trip to ${to?.name ?: "…"}")
-                          .putExtra(CalendarContract.Events.DESCRIPTION, describe(it, from, to, live))
-                      try { ctx.startActivity(i) } catch (_: Exception) { vm.toast.tryEmit("No calendar app to add it to") }
-                  })
+            Box(Modifier.heightIn(max = open)) {
+                Steps(it, from, to, live, walks, now, if (tracking) trip else null,
+                      onStart = startTrip, onEnd = { TripTracker.stop(ctx) },
+                      onLocate = { trip.lat?.let { la -> focus = MapFocus(la, trip.lon!!, 16.0) } },
+                      onFocus = { lat, lon -> focus = MapFocus(lat, lon, 16.0) },
+                      onStop = { id -> nav.go("stop/${Uri.encode(id)}") },
+                      onTrack = { r -> notify { vm.track(r.board(), r.departure(live[r.tripId])) } },
+                      onShare = {
+                          val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                              .putExtra(Intent.EXTRA_TEXT, describe(it, from, to, live))
+                          try { ctx.startActivity(Intent.createChooser(send, "Share the journey")) } catch (_: Exception) { }
+                      },
+                      onCalendar = {
+                          val i = Intent(Intent.ACTION_INSERT).setData(CalendarContract.Events.CONTENT_URI)
+                              .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, leaveAt(it, live) * 1000)
+                              .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, it.end * 1000)
+                              .putExtra(CalendarContract.Events.TITLE, "Trip to ${to?.name ?: "…"}")
+                              .putExtra(CalendarContract.Events.DESCRIPTION, describe(it, from, to, live))
+                          try { ctx.startActivity(i) } catch (_: Exception) { vm.toast.tryEmit("No calendar app to add it to") }
+                      })
+            }
         },
     ) { _ ->
         Box(Modifier.fillMaxSize()) {
@@ -277,39 +284,6 @@ private fun JourneyView(vm: AppViewModel, it: Itinerary, from: Place?, to: Place
                 FilledTonalIconButton(onClick = back) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                 Spacer(Modifier.weight(1f))
                 BasemapToggle(basemap, vm::setBasemap)
-            }
-            // tucked away: the gist, and a tap or swipe up to bring it all back
-            AnimatedVisibility(tucked, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp),
-                               enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
-                val leave = leaveAt(it, live)
-                val end = it.end + (it.rides.lastOrNull()?.let { r -> live[r.tripId]?.delay } ?: 0)
-                var drag by remember { mutableFloatStateOf(0f) }
-                Surface(onClick = { scope.launch { sheetState.partialExpand() } }, shape = RoundedCornerShape(24.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = 6.dp,
-                        modifier = Modifier.fillMaxWidth().pointerInput(Unit) {
-                            detectVerticalDragGestures(onDragStart = { drag = 0f },
-                                                       onDragEnd = { if (drag < -30) scope.launch { sheetState.partialExpand() } }) { _, dy -> drag += dy }
-                        }) {
-                    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp)) {
-                        Box(Modifier.align(Alignment.CenterHorizontally).size(width = 36.dp, height = 4.dp)
-                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(50)))
-                        Spacer(Modifier.height(8.dp))
-                        if (tracking) {
-                            Text(trip.headline, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1,
-                                 overflow = TextOverflow.Ellipsis)
-                            Text(trip.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        } else Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("${Nz.time(leave)} – ${Nz.time(end)}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                Text(if (leave - now > 60) "Leave in ${countdown(leave - now)}" else "to ${to?.name ?: "…"}",
-                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                            }
-                            Text(durationText(end - leave), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black,
-                                 color = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                }
             }
         }
     }
@@ -323,6 +297,8 @@ private fun Steps(it: Itinerary, from: Place?, to: Place?, live: Map<String, Tri
     val leave = leaveAt(it, live)
     val end = it.end + (it.rides.lastOrNull()?.let { r -> live[r.tripId]?.delay } ?: 0)
     LazyColumn(Modifier.fillMaxWidth().navigationBarsPadding(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp)) {
+        // following a trip: where you're up to comes first, so it's what shows with the sheet slid down
+        if (trip != null) item("trip") { Box(Modifier.padding(bottom = 12.dp)) { TripStatus(trip, onEnd, onLocate) } }
         item("head") {
             Column {
                 Row(verticalAlignment = Alignment.Bottom) {
@@ -347,8 +323,7 @@ private fun Steps(it: Itinerary, from: Place?, to: Place?, live: Map<String, Tri
                                  color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Spacer(Modifier.height(10.dp))
-                if (trip != null) TripStatus(trip, onEnd, onLocate)
-                else if (now < end) Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+                if (trip == null && now < end) Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Rounded.Navigation, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Start trip")

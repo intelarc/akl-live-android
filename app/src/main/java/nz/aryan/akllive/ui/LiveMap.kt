@@ -100,6 +100,10 @@ data class MapStop(
     val id: String? = null,
     val r: Float = 1f,
     val rank: Int = 0,
+    /** false: just the [label], no dot (a station's name beside the bar joining its platforms) */
+    val dot: Boolean = true,
+    /** where the label may go: 0 anywhere around, 1 left or right, 2 above or below */
+    val side: Int = 0,
 )
 
 /** A vehicle drawn live over the map, gliding between GPS fixes. */
@@ -556,17 +560,17 @@ private fun drawLayers(s: Style, lines: List<MapLine>, links: List<MapLine>, sto
             PropertyFactory.circleStrokeColor(Expression.toColor(Expression.get("c"))),
             PropertyFactory.circleRadius(byZoom("rad")),
             PropertyFactory.circleStrokeWidth(Expression.interpolate(Expression.linear(), zoom,
-                Expression.stop(9, num("sw9")), Expression.stop(13, num("sw13"))))))
+                Expression.stop(9, num("sw9")), Expression.stop(13, num("sw13")))))
+            .withFilter(Expression.eq(num("dot"), 1)))
         // names: the most important stations win the space, the rest appear as you zoom in
         val darkLabels = basemap != Basemap.Satellite && dark
-        put(SymbolLayer("akl-stop-labels", "akl-stops").withProperties(
+        fun labels(id: String, side: Int, anchors: Array<String>) = put(SymbolLayer(id, "akl-stops").withProperties(
             PropertyFactory.textField(Expression.step(zoom, Expression.toString(Expression.get("l0")),
                 Expression.stop(10.4, Expression.toString(Expression.get("l1"))), Expression.stop(11, Expression.toString(Expression.get("label"))))),
             PropertyFactory.textFont(arrayOf("Noto Sans Bold")),
             PropertyFactory.textSize(Expression.interpolate(Expression.linear(), zoom,
                 Expression.stop(10, num("ts10")), Expression.stop(14, num("ts14")))),
-            PropertyFactory.textVariableAnchor(arrayOf(Property.TEXT_ANCHOR_LEFT, Property.TEXT_ANCHOR_RIGHT, Property.TEXT_ANCHOR_TOP,
-                                                       Property.TEXT_ANCHOR_BOTTOM, Property.TEXT_ANCHOR_TOP_LEFT, Property.TEXT_ANCHOR_BOTTOM_RIGHT)),
+            PropertyFactory.textVariableAnchor(anchors),
             PropertyFactory.textRadialOffset(0.95f),
             PropertyFactory.textJustify(Property.TEXT_JUSTIFY_AUTO),
             PropertyFactory.symbolSortKey(num("rank")),
@@ -575,7 +579,12 @@ private fun drawLayers(s: Style, lines: List<MapLine>, links: List<MapLine>, sto
             PropertyFactory.textColor(android.graphics.Color.parseColor(if (darkLabels) "#E6ECF5" else "#1A2744")),
             PropertyFactory.textHaloColor(if (darkLabels) android.graphics.Color.parseColor(if (dg) MapStyles.QUIET_DARK.bg else "#0B1628")
                                           else android.graphics.Color.argb(235, 255, 255, 255)),
-            PropertyFactory.textHaloWidth(2.2f)))
+            PropertyFactory.textHaloWidth(2.2f)).withFilter(Expression.eq(num("side"), side)))
+        labels("akl-stop-labels", 0, arrayOf(Property.TEXT_ANCHOR_LEFT, Property.TEXT_ANCHOR_RIGHT, Property.TEXT_ANCHOR_TOP,
+                                             Property.TEXT_ANCHOR_BOTTOM, Property.TEXT_ANCHOR_TOP_LEFT, Property.TEXT_ANCHOR_BOTTOM_RIGHT))
+        // a station on two tracks: its name beside the bar joining the platforms, not across it
+        labels("akl-stop-labels-lr", 1, arrayOf(Property.TEXT_ANCHOR_LEFT, Property.TEXT_ANCHOR_RIGHT))
+        labels("akl-stop-labels-tb", 2, arrayOf(Property.TEXT_ANCHOR_TOP, Property.TEXT_ANCHOR_BOTTOM))
     }
     s.getSourceAs<GeoJsonSource>("akl-lines")?.setGeoJson(FeatureCollection.fromFeatures(lines.map { l ->
         Feature.fromGeometry(MultiLineString.fromLngLats(l.parts.map { part -> part.map { Point.fromLngLat(it.second, it.first) } })).also { f ->
@@ -610,6 +619,8 @@ private fun drawLayers(s: Style, lines: List<MapLine>, links: List<MapLine>, sto
             f.addNumberProperty("rank", st.rank)
             f.addNumberProperty("ts10", if (st.rank <= 0) 12f else 11f)
             f.addNumberProperty("ts14", if (st.rank <= 0) 14f else 12.5f)
+            f.addNumberProperty("dot", if (st.dot) 1 else 0)
+            f.addNumberProperty("side", st.side)
         }
     }))
 }

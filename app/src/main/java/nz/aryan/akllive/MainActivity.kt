@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import nz.aryan.akllive.system.Glance
 import nz.aryan.akllive.system.Shortcuts
-import nz.aryan.akllive.system.TrainsNow
 import nz.aryan.akllive.ui.AklApp
 import kotlin.math.sqrt
 
@@ -57,7 +56,6 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     override fun onStart() {
         super.onStart()
         vm.setVisible(true)
-        TrainsNow.appOpened(this)
     }
 
     override fun onResume() {
