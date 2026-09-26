@@ -228,7 +228,7 @@ private fun JourneyView(vm: AppViewModel, it: Itinerary, from: Place?, to: Place
         live[r.tripId]?.vehicle?.let { v ->
             MapMarker(r.tripId, v.lat, v.lon, v.bearing, routeColor(r.route, r.mode), train = r.mode == Mode.Train, tag = r.route)
         }
-    } + listOfNotNull(if (tracking && trip.lat != null) MapMarker("me", trip.lat!!, trip.lon!!, null, Color(0xFF1A73E8), train = false, tag = "You")
+    } + listOfNotNull(if (tracking && trip.lat != null) MapMarker("me", trip.lat!!, trip.lon!!, null, Color(0xFF1A73E8), train = false, me = true, accuracy = trip.accuracy)
                       else null)
     // the first fix of a trip brings the map to you
     var centred by remember(tracking) { mutableStateOf(false) }
