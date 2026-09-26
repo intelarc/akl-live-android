@@ -112,6 +112,9 @@ data class MapMarker(
     val train: Boolean,
     val tag: String? = null,
     val alert: Color? = null,
+    /** you: a blue dot with a ring for how sure the GPS is (metres), not a vehicle */
+    val me: Boolean = false,
+    val accuracy: Float = 0f,
 )
 
 /**
@@ -483,6 +486,18 @@ fun LiveMap(
                 if (sel) {
                     val pulse = 0.5f + 0.5f * sin(t * 4f)
                     drawCircle(mk.color.copy(alpha = 0.2f + 0.2f * pulse), (20 + 8 * pulse) * dp, p)
+                }
+                if (mk.me) {
+                    val mpp = proj.getMetersPerPixelAtLatitude(la).takeIf { it > 0 } ?: 1.0
+                    val halo = (mk.accuracy / mpp).toFloat().coerceIn(0f, 400 * dp)
+                    if (halo > 12 * dp) {
+                        drawCircle(mk.color.copy(alpha = 0.14f), halo, p)
+                        drawCircle(mk.color.copy(alpha = 0.35f), halo, p, style = Stroke(1 * dp))
+                    }
+                    drawCircle(Color.Black.copy(alpha = 0.25f), 10 * dp, p + Offset(0f, 1 * dp))
+                    drawCircle(Color.White, 9.5f * dp, p)
+                    drawCircle(mk.color, 6.5f * dp, p)
+                    continue
                 }
                 if (mk.train) drawTrainMarker(p, mk, sel, dp) else drawBusMarker(p, mk, dp)
                 mk.tag?.let { drawTag(measurer, it, p + Offset(0f, -(if (mk.train) 14 else 16) * dp), mk.color, Color.White, dp) }
